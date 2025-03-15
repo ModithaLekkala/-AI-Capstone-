@@ -204,4 +204,9 @@ pip-selfcheck.json
 .history
 .ionide
 
+p4src/*
+!p4src/l2_basic_forwarding.p4
+topo.json
+topology.json
+
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv
