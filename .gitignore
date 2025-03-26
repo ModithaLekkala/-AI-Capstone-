@@ -189,7 +189,7 @@ pip-selfcheck.json
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
-!.vscode/launch.json
+# !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
 
@@ -208,5 +208,7 @@ p4src/*
 !p4src/l2_basic_forwarding.p4
 topo.json
 topology.json
+datasets/*
+pysrc/models/*
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv
