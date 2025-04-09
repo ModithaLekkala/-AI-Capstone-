@@ -210,5 +210,6 @@ topo.json
 topology.json
 datasets/*
 pysrc/models/*
+pysrc/metric_plots/*
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv
