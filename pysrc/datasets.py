@@ -13,3 +13,6 @@ class UNSW_NB15_Dataset(Dataset):
         sample = self.X[index]
         label = self.Y[index]
         return sample, label
+    
+    def get_labels(self):
+        return self.Y

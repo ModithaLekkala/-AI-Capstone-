@@ -27,11 +27,12 @@ def parse_args(args):
     parser = argparse.ArgumentParser(description="UNSW_NB15 Training")
 
     # execution modes
-    parser.add_argument(
-        "--evaluate", dest="evaluate", action="store_true", help="evaluate model on validation set")
+    parser.add_argument("--evaluate", dest="evaluate", action="store_true", help="evaluate model on validation set")
     parser.add_argument("--log_freq", type=int, default=40)
+    parser.add_argument("--balance_dataset", action="store_true", help="if dataset is unbalanced from a classes distribution pov, balance it")
+
     # Hyperparams
-    parser.add_argument("--batch_size", default=512, type=int, help="batch size")
+    parser.add_argument("--batch_size", default=1024, type=int, help="batch size")
     parser.add_argument("--lr", default=0.01, type=float, help="Learning rate")
     parser.add_argument("--optim", type=none_or_str, default="ADAM", help="Optimizer to use")
     parser.add_argument("--loss", type=none_or_str, default="CrossEntropy", help="Loss function to use")
@@ -39,10 +40,10 @@ def parse_args(args):
     parser.add_argument("--patience", default=5, type=int, help="Scheduler step after that number of epochs without loss decrease")
     parser.add_argument("--momentum", default=0.9, type=float, help="Momentum")
     parser.add_argument("--weight_decay", default=0, type=float, help="Weight decay")
-    parser.add_argument("--epochs", default=10, type=int, help="Number of epochs")
+    parser.add_argument("--epochs", default=30, type=int, help="Number of epochs")
     
     # Cfgs
-    parser.add_argument("--quantized", default=False, type=bool, help="Neural network")
+    parser.add_argument("--quantized", action="store_true", help="Neural network")
     return parser.parse_args(args)
 
 

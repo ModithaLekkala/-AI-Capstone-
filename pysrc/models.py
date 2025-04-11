@@ -57,4 +57,7 @@ class SmallerNN(nn.Module):
         return self.model(x)
     
 def smaller(cfg):
-    return
+    num_classes = cfg.getint('MODEL', 'NUM_CLASSES')
+    out_features = ast.literal_eval(cfg.get('MODEL', 'OUT_FEATURES'))
+    net = SmallerNN(59, out_features, num_classes)
+    return net

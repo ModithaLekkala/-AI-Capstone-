@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay        
 import math
+from datetime import datetime
 
 RED = "\033[91m"
 GREEN = "\033[92m"
@@ -27,22 +28,25 @@ class MetricsManager():
             self.cases[case]['cms_names'].append('DEFAULT TITLE')
         
 
-    def displayConfMatrixPlot(self, case):
+    def displayConfMatrixPlot(self, case, kwargs):
         n_matrices = len(self.cases[case]['cms'])
         rows = 2
         cols = 5
-        fig, axes = plt.subplots(rows, cols, figsize=(12, 6))
         file_ct = 1
         while(n_matrices > 0):
+            fig, axes = plt.subplots(rows, cols, figsize=(12, 6))
+            
             for ax, cm, title in zip(axes.flatten(), self.cases[case]['cms'], self.cases[case]['cms_names']):
                 disp = ConfusionMatrixDisplay(confusion_matrix=cm)
                 disp.plot(ax=ax, values_format='d', cmap='Blues', colorbar=False)
                 ax.set_title(title)
 
             plt.tight_layout()
-            plt.savefig(f'pysrc/metric_plots/{case}{file_ct}.png')
+            plt.savefig(f'pysrc/metric_plots/{case}{file_ct}__{kwargs}_{datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")[:-3]}.png')
             file_ct += 1
             n_matrices -= 10 # each png file contains 10 epoch conf matrices
+            self.cases[case]['cms'] = self.cases[case]['cms'][10:]
+            self.cases[case]['cms_names'] = self.cases[case]['cms_names'][10:]
 
         self.cases[case] = None
 

@@ -15,6 +15,8 @@ import torch.nn.functional as F
 from losses import SqrHingeLoss
 from metrics import MetricsManager
 
+from torchsampler import ImbalancedDatasetSampler
+
 
 class Trainer():
     def __init__(self, args):
@@ -44,7 +46,15 @@ class Trainer():
 
         train_dataset = self.builder(data_tr[0], data_tr[1])
         test_dataset = self.builder(data_te[0], data_te[1])
-        self.train_dataloader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True)
+        
+        # balancer for unbalanced dataset
+        tr_shuffle = True
+        tr_sampler = None
+        if self.args.balance_dataset:
+            tr_shuffle = False
+            tr_sampler = ImbalancedDatasetSampler(train_dataset)
+
+        self.train_dataloader = DataLoader(train_dataset, batch_size=self.args.batch_size, sampler=tr_sampler, shuffle=tr_shuffle)
         self.test_dataloader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False)
 
         self.epoch = 0
@@ -131,8 +141,8 @@ class Trainer():
             self.metrics_manager.addConfMatrix('train', self.per_epoch_tr_truth, self.per_epoch_tr_pred, f'Epoch n{epoch}')
             self.reset_stats()
 
-        self.metrics_manager.displayConfMatrixPlot('train')
-        self.metrics_manager.displayConfMatrixPlot('test')
+        self.metrics_manager.displayConfMatrixPlot('train', kwargs='balanced' if self.args.balance_dataset else 'vanilla')
+        self.metrics_manager.displayConfMatrixPlot('test', kwargs='balanced' if self.args.balance_dataset else 'vanilla')
 
 
     def eval_model(self, epoch):

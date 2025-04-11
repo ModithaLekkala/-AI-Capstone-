@@ -10,11 +10,12 @@ from configparser import ConfigParser
 
 from models import deeper, smaller
 
-def data_preprocess(rawdata, spec_dict):
+def data_preprocess(rawdata: pd.DataFrame, spec_dict):
     categorical_features_values, continuous_features_values, list_drop = spec_dict.values()
 
     data = pd.concat([rawdata])
-    data.drop(list_drop,axis=1,inplace=True)
+    data.drop(list_drop,axis=1,inplace=True, errors='ignore')
+    samples_before_process = data.copy()
 
     # clamping continuous values
     data_num = data.select_dtypes(include=[np.number])
@@ -63,9 +64,18 @@ def data_preprocess(rawdata, spec_dict):
     X = torch.tensor(samples.values, dtype=torch.float32)
     Y = torch.tensor(labels.values, dtype=torch.long)
 
-    return X, Y, 0
+    return X, Y, 0, samples_before_process, samples
 
-def data_binarization(samples, feats_size):
+def get_features_size(tr_samples: pd.DataFrame):
+    Xint = tr_samples.astype('int')
+    for feat in tr_samples.columns:
+        quantile_99 = tr_samples[feat].quantile(0.99)        
+
+    return
+
+def data_binarization(samples):
+    feats_size = get_features_size(samples)
+
     samples_int = samples.astype('int')
 
     Xbin = np.zeros( (samples_int.shape[0], sum(feats_size.values())) )
