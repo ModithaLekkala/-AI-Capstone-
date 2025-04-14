@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import torch.nn.functional as F 
+import numpy as np
 
 from losses import SqrHingeLoss
 from metrics import MetricsManager
@@ -113,6 +114,7 @@ class Trainer():
 
     def train_model(self):
         torch.autograd.set_detect_anomaly(True)
+        best_acc = -np.inf
 
         for epoch in range(0, self.args.epochs):
             self.model.train()
@@ -151,7 +153,7 @@ class Trainer():
                 self.per_epoch_tr_truth = torch.concat([self.per_epoch_tr_truth, Y])
 
             with torch.no_grad():
-                val_loss = self.eval_model(epoch)
+                val_loss, val_acc = self.eval_model(epoch)
 
             # lr decay
             if self.scheduler != None:
@@ -160,6 +162,12 @@ class Trainer():
             self.metrics_manager.addConfMatrix('train', self.per_epoch_tr_truth, self.per_epoch_tr_pred, f'Epoch n{epoch}')
             self.reset_stats()
 
+            if(best_acc < val_acc):
+                best_acc = val_acc
+                model_name = 'bnn' if self.args.quantized else 'full'
+                dataset_name = 'balanced' if self.args.balance_dataset else 'vanilla'
+                torch.save(self.model.state_dict(), f'{self.args.checkpoints_path}/{model_name}_{dataset_name}_acc{val_acc:.3f}.pth')
+
         self.metrics_manager.displayConfMatrixPlot('train', kwargs='balanced' if self.args.balance_dataset else 'vanilla')
         self.metrics_manager.displayConfMatrixPlot('test', kwargs='balanced' if self.args.balance_dataset else 'vanilla')
 
@@ -167,6 +175,9 @@ class Trainer():
     def eval_model(self, epoch):
         self.model.eval()
         self.criterion.eval()
+
+        accuracies = []
+        losses = []
 
         for batch, (X, Y) in enumerate(self.test_dataloader):
             
@@ -193,14 +204,16 @@ class Trainer():
             elif self.args.loss == 'CrossEntropy':
                 cls = F.softmax(pred, dim=1).argmax(1)
                 acc = (cls == Y).float().mean()
-
-            self.metrics_manager.batchLog('Valid', epoch, current, len(self.train_dataloader.dataset), loss, acc)
+            
+            accuracies.append(acc)
+            losses.append(loss)
+            self.metrics_manager.batchLog('Valid', epoch, current, len(self.test_dataloader.dataset), loss, acc)
             self.per_epoch_te_pred  = torch.concat([self.per_epoch_te_pred, cls])
             self.per_epoch_te_truth = torch.concat([self.per_epoch_te_truth, Y])
 
         # add epoch confusion matrix to stats 
         self.metrics_manager.addConfMatrix('test', self.per_epoch_te_truth, self.per_epoch_te_pred, f'Epoch n{epoch}')
-        return loss
+        return np.array(losses).mean(), np.array(accuracies).mean()
     
     def reset_stats(self):
         self.per_epoch_tr_pred = torch.tensor([])

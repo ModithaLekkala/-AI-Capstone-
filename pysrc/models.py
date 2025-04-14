@@ -22,6 +22,9 @@ class DeeperNN(nn.Module):
             nn.Linear(hidden_layers[1], hidden_layers[2]),
             nn.BatchNorm1d(hidden_layers[2], affine=False, momentum=0.9),
             nn.ReLU(),
+            nn.Linear(hidden_layers[2], hidden_layers[2]),
+            nn.BatchNorm1d(hidden_layers[2], affine=False, momentum=0.9),
+            nn.ReLU(),
             nn.Linear(hidden_layers[2], output_size),
         )
         

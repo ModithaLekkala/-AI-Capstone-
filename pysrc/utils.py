@@ -54,13 +54,13 @@ def data_preprocess(rawdata: pd.DataFrame, spec_dict, binarization=False):
     labels = data[data.columns[-1]]
 
     # one hot encoding of categorical features
-    # print(f'Feature count before one-hot encoding: {samples.shape[1]}')
-    # one_hot = pd.get_dummies(data=samples, columns=data_cat.columns)
-    # old_samples = samples
-    # print(f'Feature count after one-hot encoding: {one_hot.shape[1]}')
-    # print(f'Added   features: {one_hot[one_hot.columns.difference(old_samples.columns)].columns.to_list()}')
-    # print(f'Removed features: {old_samples[old_samples.columns.difference(one_hot.columns)].columns.to_list()}')
-    # samples=one_hot
+    print(f'Feature count before one-hot encoding: {samples.shape[1]}')
+    one_hot = pd.get_dummies(data=samples, columns=cols_cat)
+    old_samples = samples
+    print(f'Feature count after one-hot encoding: {one_hot.shape[1]}')
+    print(f'Added   features: {one_hot[one_hot.columns.difference(old_samples.columns)].columns.to_list()}')
+    print(f'Removed features: {old_samples[old_samples.columns.difference(one_hot.columns)].columns.to_list()}')
+    samples=one_hot
 
     # from bool features to int
     bool_cols = samples.select_dtypes(include=bool).columns
@@ -69,13 +69,13 @@ def data_preprocess(rawdata: pd.DataFrame, spec_dict, binarization=False):
 
     # standardize int features
     standardizer = StandardScaler()
-    data_int = samples.select_dtypes(include=np.int64)
+    data_int = samples.select_dtypes(include=np.number)
     samples[data_int.columns] = standardizer.fit_transform(data_int)
     
-    # normalize float features
-    normalizer = Normalizer('max')
-    data_float = samples.select_dtypes(include=np.float64)
-    samples[data_float.columns] = normalizer.fit_transform(data_float)
+    # # normalize float features
+    # normalizer = Normalizer('max')
+    # data_float = samples.select_dtypes(include=np.float64)
+    # samples[data_float.columns] = normalizer.fit_transform(data_float)
     
     X = torch.tensor(samples.values, dtype=torch.float32)
     Y = torch.tensor(labels.values, dtype=torch.long)
