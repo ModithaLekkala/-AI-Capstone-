@@ -17,17 +17,19 @@ from metrics import MetricsManager
 
 from torchsampler import ImbalancedDatasetSampler
 
+from models import smaller, deeper
+
 
 class Trainer():
     def __init__(self, args):
         self.args = args
-        self.model, self.cfg = get_model_cfg(self.args.quantized)
-        self.device = torch.device('cpu')
-        self.model = self.model.to(device=self.device)
 
+        # gather configurations
+        self.cfg = get_model_cfg()
         self.num_classes = self.cfg.getint('MODEL', 'NUM_CLASSES')
         self.dataset = self.cfg.get('MODEL', 'DATASET')
         
+        # preprocess dataset and dataloader
         if self.dataset == 'UNSW_NB15':
             self.builder = UNSW_NB15_Dataset
             data_tr = pd.read_csv('/home/sgeraci/slu/inet-hynn/datasets/UNSW_NB15_training-set.csv', delimiter=',')
@@ -41,11 +43,15 @@ class Trainer():
                 ]
             }
 
-            data_tr = data_preprocess(data_tr, dict)
-            data_te = data_preprocess(data_te, dict)
+            print()
+            print('TRAINING SET PREPROCESSING')
+            X_tr, Y_tr, Xbin_tr, Xbin_desc_tr,_, _ = data_preprocess(data_tr, dict, binarization=self.args.quantized)
+            print()
+            print('TESTING SET PREPROCESSING')
+            X_te, Y_te, Xbin_te, Xbin_desc_te, _, _ = data_preprocess(data_te, dict, binarization=self.args.quantized)
 
-        train_dataset = self.builder(data_tr[0], data_tr[1])
-        test_dataset = self.builder(data_te[0], data_te[1])
+        train_dataset = self.builder(Xbin_tr if self.args.quantized else X_tr, Y_tr)
+        test_dataset = self.builder(Xbin_te if self.args.quantized else X_te, Y_te)
         
         # balancer for unbalanced dataset
         tr_shuffle = True
@@ -56,6 +62,18 @@ class Trainer():
 
         self.train_dataloader = DataLoader(train_dataset, batch_size=self.args.batch_size, sampler=tr_sampler, shuffle=tr_shuffle)
         self.test_dataloader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False)
+        
+        # set model and evaluation metrics
+        self.device = torch.device('cpu')
+        if self.args.quantized:
+            assert sum(Xbin_desc_tr.values()) == sum(Xbin_desc_te.values())
+            self.nn_size = sum(Xbin_desc_tr.values())
+            self.model = smaller(self.cfg, self.nn_size)
+        else:
+            assert X_tr.shape[1] == X_te.shape[1]
+            self.nn_size = X_tr.shape[1]
+            self.model = deeper(self.cfg, self.nn_size)
+        self.model = self.model.to(device=self.device)
 
         self.epoch = 0
         self.best_val_acc = 0
@@ -91,6 +109,7 @@ class Trainer():
         
         self.metrics_manager = MetricsManager(['train', 'test'])
         self.reset_stats()
+
 
     def train_model(self):
         torch.autograd.set_detect_anomaly(True)

@@ -3,21 +3,37 @@ import torch
 import numpy as np
 import pandas as pd
 
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, Normalizer
 from sklearn.metrics import confusion_matrix
 
 from configparser import ConfigParser
 
 from models import deeper, smaller
 
-def data_preprocess(rawdata: pd.DataFrame, spec_dict):
+def round_to_nearest(x, n_blocks=4):
+    blocks_bound = 1/n_blocks
+    return blocks_bound * round(x / blocks_bound)
+
+
+def data_preprocess(rawdata: pd.DataFrame, spec_dict, binarization=False):
     categorical_features_values, continuous_features_values, list_drop = spec_dict.values()
 
     data = pd.concat([rawdata])
     data.drop(list_drop,axis=1,inplace=True, errors='ignore')
-    samples_before_process = data.copy()
 
-    # clamping continuous values
+    # limit non-unique value for categorical features
+    cols_cat = data.select_dtypes(exclude=[np.number]).columns
+    if cols_cat.any():
+        for feat in cols_cat: 
+            if data[feat].nunique()>categorical_features_values:
+                data[feat] = np.where(data[feat].isin(data[feat].value_counts().head(categorical_features_values).index), data[feat], '-')
+            
+            data[feat] = data[feat].astype('category')
+            data[feat] = data[feat].cat.codes
+
+    og_samples = data.copy()
+
+    # clamping continuous values exceeding 95 quantile
     data_num = data.select_dtypes(include=[np.number])
     for feature in data_num.columns:
         if data_num[feature].max()>10*data_num[feature].median() and data_num[feature].max()>10 :
@@ -32,83 +48,85 @@ def data_preprocess(rawdata: pd.DataFrame, spec_dict):
             else:
                 data[feature] = np.log(data[feature])
 
-    # limit non-unique value for categorical features
-    data_cat = data.select_dtypes(exclude=[np.number])
-    for feature in data_cat.columns:
-        if data_cat[feature].nunique()>categorical_features_values:
-            data[feature] = np.where(data[feature].isin(data[feature].value_counts().head(categorical_features_values).index), data[feature], '-')
 
     # split features and labels
     samples = data[data.columns[:-1]]
     labels = data[data.columns[-1]]
 
     # one hot encoding of categorical features
-    print(f'Feature count before one-hot encoding: {samples.shape[1]}')
-    one_hot = pd.get_dummies(data=samples, columns=data_cat.columns)
-    old_samples = samples
-    print(f'Feature count after one-hot encoding: {one_hot.shape[1]}')
-    print(f'Added   features: {one_hot[one_hot.columns.difference(old_samples.columns)].columns.to_list()}')
-    print(f'Removed features: {old_samples[old_samples.columns.difference(one_hot.columns)].columns.to_list()}')
-    samples=one_hot
+    # print(f'Feature count before one-hot encoding: {samples.shape[1]}')
+    # one_hot = pd.get_dummies(data=samples, columns=data_cat.columns)
+    # old_samples = samples
+    # print(f'Feature count after one-hot encoding: {one_hot.shape[1]}')
+    # print(f'Added   features: {one_hot[one_hot.columns.difference(old_samples.columns)].columns.to_list()}')
+    # print(f'Removed features: {old_samples[old_samples.columns.difference(one_hot.columns)].columns.to_list()}')
+    # samples=one_hot
 
     # from bool features to int
     bool_cols = samples.select_dtypes(include=bool).columns
-    samples[bool_cols] = samples[bool_cols].astype(int)
+    if(len(bool_cols) > 0):
+        samples[bool_cols] = samples[bool_cols].astype(int)
 
-    # normalize float column
-    scaler = StandardScaler()
-    data_num = samples.select_dtypes(include=np.number)
-    samples[data_num.columns] = scaler.fit_transform(data_num)
-
-    # X_bin = torch.tensor(data_binarization(samples), dtype=torch.float32)
+    # standardize int features
+    standardizer = StandardScaler()
+    data_int = samples.select_dtypes(include=np.int64)
+    samples[data_int.columns] = standardizer.fit_transform(data_int)
+    
+    # normalize float features
+    normalizer = Normalizer('max')
+    data_float = samples.select_dtypes(include=np.float64)
+    samples[data_float.columns] = normalizer.fit_transform(data_float)
+    
     X = torch.tensor(samples.values, dtype=torch.float32)
     Y = torch.tensor(labels.values, dtype=torch.long)
 
-    return X, Y, 0, samples_before_process, samples
+    if(binarization):
+        bin_tmp, bin_desc = data_binarization(samples.astype('int'))
+        X_bin = torch.tensor(bin_tmp, dtype=torch.float32)
+    else:
+        X_bin = bin_desc = -1
+        
 
-def get_features_size(tr_samples: pd.DataFrame):
-    Xint = tr_samples.astype('int')
-    for feat in tr_samples.columns:
-        quantile_99 = tr_samples[feat].quantile(0.99)        
+    return X, Y, X_bin, bin_desc, og_samples, samples
 
-    return
 
-def data_binarization(samples):
-    feats_size = get_features_size(samples)
+def data_binarization(samples: pd.DataFrame):
+    binft_totsize = 0
+    binfeats_desc = {}
 
-    samples_int = samples.astype('int')
+    # gathering feature needing bit width
+    for feat in samples.columns:
+        max_val = samples[feat].abs().max()
+        bin_width = len(bin(max_val)[2:])
+        binfeats_desc[feat] = bin_width 
+        print(f'Feat: {feat} Bit width: {bin_width} | Max value {max_val}')
+        binft_totsize+=bin_width
+    print(f'Tot bit needed per sample: {binft_totsize}')
+    print()
+    print('* FEATURE BINARIZATION *')
+    bin_samples = np.zeros((samples.shape[0], binft_totsize))
+    for i, feature_row in samples.iterrows():
+        if i % 10000 == 0:
+            print(f"Binarized samples [{i:>6d}/{samples.shape[0]:>6d}]")
 
-    Xbin = np.zeros( (samples_int.shape[0], sum(feats_size.values())) )
-    for i, feature_row in enumerate(samples_int):
         # the index at which the next binary value should be written
         write_ptr = 0
         for j, column_val in enumerate(feature_row):
-            # Transforming in KB sbytes, dbytes, sload, dload
-            if j in [2,3,6,7]:
-                column_val = int(column_val/1000) 
-            # Setting to maximum any value above the max given the number of b
-            if (column_val > 2**feats_size[j] - 1):
-                column_val = 2**feats_size[j] - 1
             tmp = list(bin(column_val)[2:])
             tmp = [int(x) for x in tmp]
             # zero padding to the left
-            tmp = [0]*(feats_size[j] - len(tmp)) + tmp
+            tmp = [0]*(binfeats_desc[samples.columns[j]] - len(tmp)) + tmp
             for k, bin_val in enumerate(tmp):
-                Xbin[i,write_ptr] = bin_val
+                bin_samples[i,write_ptr] = bin_val
                 write_ptr += 1
+    
+    return bin_samples, binfeats_desc
 
-    return Xbin
-
-def get_model_cfg(quantized, name='default'):
+def get_model_cfg(name='default'):
     cfg = ConfigParser()
     current_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(current_dir, 'cfgs', name.lower() + '.ini')
     assert os.path.exists(config_path), f"{config_path} not found."
     cfg.read(config_path)
-
-    if quantized:
-        model = smaller(cfg)
-    else:
-        model = deeper(cfg)
-
-    return model, cfg
+    
+    return cfg

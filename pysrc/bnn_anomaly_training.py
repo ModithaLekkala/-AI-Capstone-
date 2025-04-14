@@ -40,11 +40,18 @@ def parse_args(args):
     parser.add_argument("--patience", default=5, type=int, help="Scheduler step after that number of epochs without loss decrease")
     parser.add_argument("--momentum", default=0.9, type=float, help="Momentum")
     parser.add_argument("--weight_decay", default=0, type=float, help="Weight decay")
-    parser.add_argument("--epochs", default=30, type=int, help="Number of epochs")
+    parser.add_argument("--epochs", default=10, type=int, help="Number of epochs")
     
     # Cfgs
     parser.add_argument("--quantized", action="store_true", help="Neural network")
-    return parser.parse_args(args)
+
+    parsed_args = parser.parse_args(args)
+
+    # Conditional check: if scheduler is not PLATEAU and patience was provided, raise an error.
+    if parsed_args.scheduler.upper() != "PLATEAU" and parsed_args.patience is not None:
+        parser.error("--patience is only allowed when --scheduler is PLATEAU")
+
+    return parsed_args
 
 
 def main():

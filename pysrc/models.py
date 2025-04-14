@@ -29,10 +29,10 @@ class DeeperNN(nn.Module):
     def forward(self, x):
         return self.seq(x)
     
-def deeper(cfg):
+def deeper(cfg, input_size, ):
     num_classes = cfg.getint('MODEL', 'NUM_CLASSES')
     out_features = ast.literal_eval(cfg.get('MODEL', 'OUT_FEATURES'))
-    net = DeeperNN(59, out_features, num_classes)
+    net = DeeperNN(input_size, out_features, num_classes)
     return net
     
 # data plane dnn
@@ -56,8 +56,8 @@ class SmallerNN(nn.Module):
     def forward(self, x):
         return self.model(x)
     
-def smaller(cfg):
+def smaller(cfg, input_size):
     num_classes = cfg.getint('MODEL', 'NUM_CLASSES')
     out_features = ast.literal_eval(cfg.get('MODEL', 'OUT_FEATURES'))
-    net = SmallerNN(59, out_features, num_classes)
+    net = SmallerNN(input_size, out_features, num_classes)
     return net
