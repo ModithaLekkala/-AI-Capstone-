@@ -3,22 +3,19 @@ import torch
 import numpy as np
 import pandas as pd
 
-from sklearn.preprocessing import StandardScaler, Normalizer
-from sklearn.metrics import confusion_matrix
-
+from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
 from configparser import ConfigParser
 
-from models import deeper, smaller
+import warnings
 
 def round_to_nearest(x, n_blocks=4):
     blocks_bound = 1/n_blocks
     return blocks_bound * round(x / blocks_bound)
 
 
-def data_preprocess(rawdata: pd.DataFrame, spec_dict, binarization=False):
+def data_preprocess(data: pd.DataFrame, spec_dict, binarization=False):
     categorical_features_values, continuous_features_values, list_drop = spec_dict.values()
 
-    data = pd.concat([rawdata])
     data.drop(list_drop,axis=1,inplace=True, errors='ignore')
 
     # limit non-unique value for categorical features
@@ -68,26 +65,31 @@ def data_preprocess(rawdata: pd.DataFrame, spec_dict, binarization=False):
         samples[bool_cols] = samples[bool_cols].astype(int)
 
     # standardize int features
-    standardizer = StandardScaler()
-    data_int = samples.select_dtypes(include=np.number)
-    samples[data_int.columns] = standardizer.fit_transform(data_int)
-    
-    # # normalize float features
-    # normalizer = Normalizer('max')
-    # data_float = samples.select_dtypes(include=np.float64)
-    # samples[data_float.columns] = normalizer.fit_transform(data_float)
-    
-    X = torch.tensor(samples.values, dtype=torch.float32)
-    Y = torch.tensor(labels.values, dtype=torch.long)
+    # if not binarization:
+        # standardizer = StandardScaler()
+        # data_int = samples.select_dtypes(include=np.number)
+        # samples[data_int.columns] = standardizer.fit_transform(data_int)
+        
+        # # normalize float features
+        # normalizer = Normalizer()
+        # data_float = samples.select_dtypes(include=np.number)
+        # samples[data_float.columns] = normalizer.fit_transform(data_float)
 
-    if(binarization):
-        bin_tmp, bin_desc = data_binarization(samples.astype('int'))
-        X_bin = torch.tensor(bin_tmp, dtype=torch.float32)
-    else:
-        X_bin = bin_desc = -1
+        # normalizer = MinMaxScaler()
+        # data_float = samples.select_dtypes(include=np.number)
+        # samples[data_float.columns] = normalizer.fit_transform(data_float)
+    
+    # X = torch.tensor(samples.values, dtype=torch.float32)
+    # Y = torch.tensor(labels.values, dtype=torch.long)
+
+    # if(binarization):
+    #     bin_tmp, bin_desc = data_binarization(samples.astype('int'))
+    #     X_bin = torch.tensor(bin_tmp, dtype=torch.float32)
+    # else:
+    #     X_bin = bin_desc = -1
         
 
-    return X, Y, X_bin, bin_desc, og_samples, samples
+    return samples, labels.values, og_samples
 
 
 def data_binarization(samples: pd.DataFrame):
@@ -130,3 +132,12 @@ def get_model_cfg(name='default'):
     cfg.read(config_path)
     
     return cfg
+
+def suppress_warnings():
+    # Suppress brevitas Warning
+    warnings.filterwarnings(
+        "ignore",
+        message="Defining your `__torch_function__` as a plain method is deprecated",
+        category=UserWarning,
+    )
+
