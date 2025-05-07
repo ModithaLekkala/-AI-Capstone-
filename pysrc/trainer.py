@@ -2,8 +2,7 @@ import os
 import ast
 import pandas as pd
 
-from utils import get_model_cfg, data_preprocess, data_binarization
-from configparser import ConfigParser
+from utils import get_model_cfg, data_preprocess, data_binarization, get_distillation_cfg
 from datasets import UNSW_NB15_Dataset
 from torch.utils.data import DataLoader
 
@@ -25,6 +24,8 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 TRAIN = 'train'
 VALID = 'valid'
+TRAIN_DATASET_PATH = '/home/sgeraci/slu/inet-hynn/datasets/UNSW_NB15_training-set.csv'
+VALID_DATASET_PATH = '/home/sgeraci/slu/inet-hynn/datasets/UNSW_NB15_testing-set.csv'
 
 class Trainer():
     def __init__(self, args):
@@ -44,14 +45,14 @@ class Trainer():
         self.kfolder = StratifiedShuffleSplit(n_splits=self.args.folds, test_size=0.2, random_state=self.random_seed)
         self.kfold_idx = 0
         self.best_acc = -np.inf
-        self.metrics_manager = MetricsManager(self.args.lr, self.args.epochs, self.args.scheduler, ast.literal_eval(self.cfg.get('MODEL', 'OUT_FEATURES')))
+        self.metrics_manager = MetricsManager(self.args.lr, self.args.epochs, self.args.scheduler, ast.literal_eval(self.cfg.get('MODEL', 'OUT_FEATURES')), self.args.distilled)
         self.reset_stats()
         
         # preprocess dataset and dataloader
         if self.dataset == 'UNSW_NB15':
             self.builder = UNSW_NB15_Dataset
-            data_tr = pd.read_csv('/home/sgeraci/slu/inet-hynn/datasets/UNSW_NB15_training-set.csv', delimiter=',')
-            data_te = pd.read_csv('/home/sgeraci/slu/inet-hynn/datasets/UNSW_NB15_testing-set.csv', delimiter=',')
+            data_tr = pd.read_csv(TRAIN_DATASET_PATH, delimiter=',')
+            data_te = pd.read_csv(VALID_DATASET_PATH, delimiter=',')
             dict = {
                 'categorical_features_values': 6,
                 'continuous_features_values': 50,
@@ -79,6 +80,15 @@ class Trainer():
             self.model_f = smaller
         else:
             self.model_f = deeper
+        
+        if self.args.distilled:
+            dist_cfg = get_distillation_cfg()
+            self.teacher_path = dist_cfg.get('TEACHER', 'WEIGHT_PATH')
+            self.soft_target_loss_weight = dist_cfg.getfloat('STUDENT', 'TEACHER_LOSS_WEIGHT')
+            self.ce_loss_weight = dist_cfg.getfloat('STUDENT', 'STUDENT_LOSS_WEIGHT')
+            weight = torch.load(self.teacher_path)
+            self.teacher = deeper(self.cfg, self.nn_size) 
+            self.teacher.load_state_dict(weight)
 
         if self.args.subset_size:
             N = len(self.Y)
@@ -133,14 +143,25 @@ class Trainer():
             else:
                 raise Exception(f"Unrecognized scheduler {self.args.scheduler}")
             
-            self.train_fold()
+            # save binary weight in hex format
+            if self.args.distilled:
+                self.train_fold_distilled()
+                binw = self.model.get_bin_weights()
+                binw[binw == -1] = 0
+                for ix, layerw in enumerate(binw):
+                    print(f"Layer {ix} binarized weights shape: {layerw.shape}")
+
+
+            else:
+                self.train_fold()
             
             torch.save(self.model.state_dict(), f'{self.args.checkpoints_path}/bestkfold_{self.kfold_idx}__{self.model_name}_{self.dataset_name}_acc{self.best_acc:.3f}.pth')
+            
             self.best_acc = -np.inf
             self.kfold_idx+=1
             
-            self.metrics_manager.displayConfMatrixPlot(self.train_case, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
-            self.metrics_manager.displayConfMatrixPlot(self.valid_case, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
+            # self.metrics_manager.displayConfMatrixPlot(self.train_case, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
+            # self.metrics_manager.displayConfMatrixPlot(self.valid_case, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
         
         self.metrics_manager.displayTrainEvalAcc(f'{self.model_name}', self.dataset_name, self.args.epochs)
         self.metrics_manager.displayLosses(f'{self.model_name}', self.dataset_name)
@@ -202,7 +223,81 @@ class Trainer():
                 self.metrics_manager.addLr((self.optimizer.param_groups[0]['lr'], epoch))
             
             # statistics
-            self.metrics_manager.addConfMatrix(self.train_case, self.per_epoch_tr_truth, self.per_epoch_tr_pred, f'Epoch n{epoch}')
+            # self.metrics_manager.addConfMatrix(self.train_case, self.per_epoch_tr_truth, self.per_epoch_tr_pred, f'Epoch n{epoch}')
+            self.reset_stats()
+
+            if(self.best_acc < val_acc):
+                self.best_acc = val_acc
+                self.best_fold = self.model.state_dict() 
+
+    def train_fold_distilled(self, T=2):
+        for epoch in range(1, self.args.epochs+1):
+            self.teacher.eval()
+            self.model.train()
+            self.criterion.train()
+
+            accuracies = []
+
+            for batch, (X_tr, Y_tr) in enumerate(self.train_dataloader):
+                if isinstance(self.criterion, SqrHingeLoss):
+                    target = Y_tr.unsqueeze(1)
+                    target_onehot = torch.Tensor(target.size(0), 2)
+                    target_onehot.fill_(-1)
+                    target_onehot.scatter_(1, target, 1)
+                    target = target.squeeze()
+                    target_var = target_onehot
+                else:
+                    target_var = Y_tr
+
+                with torch.no_grad():
+                    teacher_logits = self.teacher(X_tr)
+
+                # forward pass
+                student_logits = self.model(X_tr)
+                
+                soft_targets = nn.functional.softmax(teacher_logits / T, dim=-1)
+                soft_prob = nn.functional.log_softmax(student_logits / T, dim=-1)
+
+                soft_targets_loss = torch.sum(soft_targets * (soft_targets.log() - soft_prob)) / soft_prob.size()[0] * (T**2)
+                label_loss = self.criterion(student_logits, target_var)
+                loss = self.soft_target_loss_weight * soft_targets_loss + self.ce_loss_weight * label_loss
+
+                # backpropagation
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                if hasattr(self.model, 'clip_weights'):
+                    self.model.clip_weights(-1, 1)
+
+                if self.args.loss == 'SqrHinge':
+                    cls = student_logits.argmax(1).round()
+                elif self.args.loss == 'CrossEntropy':
+                    cls = F.softmax(student_logits, dim=1).argmax(1)
+                    
+                acc = (cls == Y_tr).float().mean()
+                accuracies.append(acc.item())
+                self.metrics_manager.addLoss(self.train_case, (loss.item(), epoch))
+
+                if(batch % self.args.log_freq == 0):
+                    loss, current = loss.item(), batch * self.train_dataloader.batch_size + len(X_tr)     
+                    self.metrics_manager.batchLog(mode='Train', epoch_no=epoch, curr_len=current, dataset_len=len(self.train_dataloader.dataset), loss=loss, acc=acc, kfold=self.kfold_idx, epochs=self.args.epochs)
+
+                self.per_epoch_tr_pred  = torch.concat([self.per_epoch_tr_pred, cls])
+                self.per_epoch_tr_truth = torch.concat([self.per_epoch_tr_truth, Y_tr])
+
+            with torch.no_grad():
+                val_loss, val_acc = self.eval_model(epoch)
+            
+            self.metrics_manager.addAcc(f'valid{self.kfold_idx}', val_acc)
+            self.metrics_manager.addAcc(f'train{self.kfold_idx}', np.mean(accuracies))
+            # lr decay
+            if self.scheduler != None:
+                self.scheduler.step(val_loss)
+                self.metrics_manager.addLr((self.optimizer.param_groups[0]['lr'], epoch))
+            
+            # statistics
+            # self.metrics_manager.addConfMatrix(self.train_case, self.per_epoch_tr_truth, self.per_epoch_tr_pred, f'Epoch n{epoch}')
             self.reset_stats()
 
             if(self.best_acc < val_acc):
@@ -249,7 +344,7 @@ class Trainer():
             self.per_epoch_te_truth = torch.concat([self.per_epoch_te_truth, Y_val])
 
         # add epoch confusion matrix to stats 
-        self.metrics_manager.addConfMatrix(self.valid_case, self.per_epoch_te_truth, self.per_epoch_te_pred, f'Epoch n{epoch}')
+        # self.metrics_manager.addConfMatrix(self.valid_case, self.per_epoch_te_truth, self.per_epoch_te_pred, f'Epoch n{epoch}')
         self.metrics_manager.batchLog(mode='Valid', epoch_no=epoch, curr_len=current, dataset_len=len(self.valid_dataloader.dataset), loss=np.array(losses).mean(), acc=np.array(accuracies).mean(), epochs=self.args.epochs, kfold=self.kfold_idx)
         print('\n')
         return np.array(losses).mean(), np.array(accuracies).mean()

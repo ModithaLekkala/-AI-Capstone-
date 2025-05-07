@@ -1,12 +1,9 @@
 import ast
 import brevitas.nn as qnn
-import brevitas.quant.binary as qbin
-from brevitas.core.scaling import ConstScaling
-
+from quantizer import CommonBinActQuant, CommonBinWeightQuant 
 import torch
 import torch.nn as nn
-
-from quantizer import CommonBinActQuant, CommonBinWeightQuant 
+import numpy as np
 
 DROPOUT = 0.2
 
@@ -25,27 +22,6 @@ class DeeperNN(nn.Module):
 
         self.features.append(nn.Linear(in_features, output_size))
 
-
-        # self.seq = nn.Sequential(
-        #     nn.Linear(input_size, hidden_layers[0]),
-        #     nn.BatchNorm1d(hidden_layers[0], affine=False, momentum=0.9),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_layers[0], hidden_layers[1]),
-        #     nn.BatchNorm1d(hidden_layers[1], affine=False, momentum=0.9),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_layers[1], hidden_layers[2]),
-        #     nn.BatchNorm1d(hidden_layers[2], affine=False, momentum=0.9),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_layers[2], output_size),
-        #     nn.BatchNorm1d(hidden_layers[3], affine=False, momentum=0.9),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_layers[3], output_size),
-        #     nn.BatchNorm1d(hidden_layers[4], affine=False, momentum=0.9),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_layers[4], output_size),
-        # )
-        
-
     def forward(self, x):
         for mod in self.features:
             x = mod(x)
@@ -61,6 +37,8 @@ def deeper(cfg, input_size, ):
 class SmallerNN(nn.Module):
     def __init__(self, input_size, hidden_layers, output_size=2):
         super(SmallerNN, self).__init__()
+        self.n_layers = len(hidden_layers)+1
+
         self.features = nn.ModuleList()
         self.features.append(qnn.QuantIdentity(act_quant=CommonBinActQuant))
         in_features=input_size
@@ -85,19 +63,6 @@ class SmallerNN(nn.Module):
                 bias=False,
                 weight_quant=CommonBinWeightQuant))
 
-
-
-        # self.model = nn.Sequential(
-        #     qnn.QuantLinear(input_size, hidden_layers[0], bias=False, weight_quant=CommonBinWeightQuant),
-        #     qnn.QuantIdentity(act_quant=CommonBinActQuant),
-        #     qnn.QuantLinear(hidden_layers[0], hidden_layers[1], bias=False, weight_quant=CommonBinWeightQuant),
-        #     qnn.QuantIdentity(act_quant=CommonBinActQuant),
-        #     # nn.Dropout(),
-        #     qnn.QuantLinear(hidden_layers[1], hidden_layers[2], bias=False, weight_quant=CommonBinWeightQuant),
-        #     qnn.QuantIdentity(act_quant=CommonBinActQuant),
-        #     qnn.QuantLinear(hidden_layers[2], output_size, bias=False, weight_quant=CommonBinWeightQuant),
-        # )
-
         for m in self.modules():
             if isinstance(m, qnn.QuantLinear):
                 torch.nn.init.uniform_(m.weight.data, -1, 1)
@@ -113,6 +78,14 @@ class SmallerNN(nn.Module):
         for mod in self.features:
             x = mod(x)
         return x
+    
+    def get_bin_weights(self):
+        weights = []
+        for _, module in self.features.named_modules():
+            if isinstance(module, qnn.QuantLinear):
+                bin_weights = module.quant_weight()
+                weights.append(bin_weights)
+        return weights
     
 def smaller(cfg, input_size):
     num_classes = cfg.getint('MODEL', 'NUM_CLASSES')

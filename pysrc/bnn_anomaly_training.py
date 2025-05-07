@@ -23,6 +23,7 @@ def parse_args(args):
     parser.add_argument("--evaluate", dest="evaluate", action="store_true", help="evaluate model on validation set")
     parser.add_argument("--log_freq", type=int, default=40)
     parser.add_argument("--balance_dataset", action="store_true", help="if dataset is unbalanced from a classes distribution pov, balance it")
+    parser.add_argument("--distilled", action="store_true", help="if dataset is unbalanced from a classes distribution pov, balance it")
 
     # Hyperparams
     parser.add_argument("--batch_size", default=2048, type=int, help="batch size")
@@ -33,7 +34,7 @@ def parse_args(args):
     parser.add_argument("--patience", default=5, type=int, help="Scheduler step after that number of epochs without loss decrease")
     parser.add_argument("--momentum", default=0.9, type=float, help="Momentum")
     parser.add_argument("--weight_decay", default=1e-2, type=float, help="Weight decay")
-    parser.add_argument("--epochs", default=100, type=int, help="Number of epochs")
+    parser.add_argument("--epochs", default=10, type=int, help="Number of epochs")
     parser.add_argument("--folds", default=1, type=int, help="Number of fold for cross-validation")
     
     # Configurations

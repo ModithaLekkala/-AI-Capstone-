@@ -133,6 +133,15 @@ def get_model_cfg(name='default'):
     
     return cfg
 
+def get_distillation_cfg(name='distillation'):
+    cfg = ConfigParser()
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, 'cfgs', name.lower() + '.ini')
+    assert os.path.exists(config_path), f"{config_path} not found."
+    cfg.read(config_path)
+    
+    return cfg
+
 def suppress_warnings():
     # Suppress brevitas Warning
     warnings.filterwarnings(

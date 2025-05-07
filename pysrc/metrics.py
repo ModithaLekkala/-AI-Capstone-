@@ -9,7 +9,7 @@ RESET = "\033[0m"
 
 
 class MetricsManager():
-    def __init__(self, init_lr, init_epochs, scheduler, hidden_layers):
+    def __init__(self, init_lr, init_epochs, scheduler, hidden_layers, distilled):
         self.cases = {}
         self.bestacc = -np.inf
         self.bestfold = 0
@@ -19,6 +19,7 @@ class MetricsManager():
         self.epochs = init_epochs
         self.scheduler = scheduler
         self.hidden_layers = hidden_layers
+        self.distilled = distilled
 
     def initCase(self, case):
         self.cases[case] = {
@@ -103,11 +104,11 @@ class MetricsManager():
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
         plt.ylim(top=1)
-        plt.title(f'Training {model_name.upper()} model \nBalanced dataset: {dataset_name.upper()} \nLr scheduler: {self.scheduler} \nInit_lr: {self.init_lr} \nNeurons: {self.hidden_layers}')
+        plt.title(f'Training {model_name.upper()} model \nBalanced dataset: {dataset_name.upper()} \nLr scheduler: {self.scheduler} \nInit_lr: {self.init_lr} \nNeurons: {self.hidden_layers} \nDistilled: {self.distilled}')
         plt.legend(loc='lower right')
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig(f'pysrc/metric_plots/training_acc_{model_name}_{dataset_name}_{datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")[:-3]}.png')
+        plt.savefig(f'pysrc/metric_plots/training_acc_{model_name}_{dataset_name}_{self.distilled}_{datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")[:-3]}.png')
 
     def displayLosses(self, model_name, dataset_name):
         plt.figure(figsize=(8, 5))
