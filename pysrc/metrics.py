@@ -9,17 +9,18 @@ RESET = "\033[0m"
 
 
 class MetricsManager():
-    def __init__(self, init_lr, init_epochs, scheduler, hidden_layers, distilled):
+    def __init__(self, init_lr, init_epochs, scheduler, hidden_layers, distilled, init_wd):
         self.cases = {}
         self.bestacc = -np.inf
         self.bestfold = 0
         self.init_lr = init_lr
         self.curr_lr = init_lr
-        self.lr_regions = set()
+        self.lr_regions = list()
         self.epochs = init_epochs
         self.scheduler = scheduler
         self.hidden_layers = hidden_layers
         self.distilled = distilled
+        self.init_wd = init_wd
 
     def initCase(self, case):
         self.cases[case] = {
@@ -28,23 +29,27 @@ class MetricsManager():
             'accuracies': [],
             'losses': []
         }
+    
+    def addLrRegion(self, item):
+        if item not in self.lr_regions:
+            self.lr_regions.append(item)
 
     def addLr(self, region: tuple):
         lr, epoch = region
         
         if (lr != self.curr_lr):
             if len(self.lr_regions) == 0:
-                self.lr_regions.add((1, epoch, self.curr_lr))
+                self.addLrRegion((1, epoch, self.curr_lr))
             else:
-                _, last_epoch, _ = list(self.lr_regions)[0]
-                self.lr_regions.add((last_epoch, epoch, self.curr_lr))
+                _, last_epoch, _ = self.lr_regions[-1]
+                self.addLrRegion((last_epoch, epoch, self.curr_lr))
             self.curr_lr = lr
         elif epoch == self.epochs:
             if len(self.lr_regions) == 0:
-                self.lr_regions.add((1, epoch, self.curr_lr))
+                self.addLrRegion((1, epoch, self.curr_lr))
             else:
-                _, last_epoch, _ = list(self.lr_regions)[0]
-                self.lr_regions.add((last_epoch, epoch, self.curr_lr))
+                _, last_epoch, _ = self.lr_regions[-1]
+                self.addLrRegion((last_epoch, epoch, self.curr_lr))
         
 
     def addAcc(self, case, acc):
@@ -64,76 +69,103 @@ class MetricsManager():
         epochs = list(range(1, epochs+1))
         plt.figure(figsize=(10, 6))
 
-        for case in self.cases.keys():
-            fold=case[5]
-            accuracies = self.cases[case]['accuracies']
-            linewidth = 0.7
-            marker=''
-            label_train=None
-            label_valid=None
+        folds = sorted({int(k[len('train'):]) for k in self.cases if k.startswith('train')})
+        train_mat = np.vstack([self.cases[f'train{f}']['accuracies'] for f in folds])
+        valid_mat = np.vstack([self.cases[f'valid{f}']['accuracies'] for f in folds])
 
-            if self.bestfold in case:
-                linewidth = 3
-                marker='o'
-                label_train=f'Best fold {fold} training accuracy'
-                label_valid=f'Best fold {fold} validation accuracy'
+        mean_train = train_mat.mean(axis=0)
+        std_train  = train_mat.std(axis=0)
+        mean_valid = valid_mat.mean(axis=0)
+        std_valid  = valid_mat.std(axis=0)
 
-            if 'train' in case:
-                plt.plot(epochs, accuracies, linewidth = linewidth,marker=marker, label=label_train)
-                
-            if 'valid' in case:
-                plt.plot(epochs, accuracies, linewidth = linewidth, linestyle='dashed', marker=marker, label=label_valid)
+        plt.plot(epochs, mean_train,  color='blue',  lw=2, label='Mean training accuracy')
+        plt.fill_between(epochs,
+                        mean_train - std_train,
+                        mean_train + std_train,
+                        color='blue', alpha=0.2)
 
+        plt.plot(epochs, mean_valid, color='orange', lw=2, label='Mean validation accuracy', linestyle='--')
+        plt.fill_between(epochs,
+                        mean_valid - std_valid,
+                        mean_valid + std_valid,
+                        color='orange', alpha=0.2)
 
-        # lr ragions (PLATEAU scheduler)
         cmap = plt.get_cmap('Set2')
-
         y_min, y_max = plt.ylim()
-        regions = list(self.lr_regions)
-
-        for i, (xmin, xmax, lr) in enumerate(regions):
-            color = cmap(i % cmap.N) 
+        for i, (xmin, xmax, lr) in enumerate(self.lr_regions):
+            color = cmap(i % cmap.N)
             plt.axvspan(xmin, xmax, color=color, alpha=0.3)
-            yloc = y_max - 0.5 * (y_max - y_min)
             xmid = (xmin + xmax) / 2
+            yloc = y_max - 0.5 * (y_max - y_min)
             plt.text(xmid, yloc, f'lr:{lr:.0e}',
-                    ha='center', va='center',
-                    fontsize=10,
-                    alpha=0.8)
-            
+                    ha='center', va='center', fontsize=10, alpha=0.8)
+
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
         plt.ylim(top=1)
-        plt.title(f'Training {model_name.upper()} model \nBalanced dataset: {dataset_name.upper()} \nLr scheduler: {self.scheduler} \nInit_lr: {self.init_lr} \nNeurons: {self.hidden_layers} \nDistilled: {self.distilled}')
+        plt.title(
+            f'Training {model_name.upper()} model\n'
+            f'Balanced dataset: {dataset_name.upper()}\n'
+            f'Lr scheduler: {self.scheduler}  Init LR: {self.init_lr:.1e}  '
+            f'Weight decay: {self.init_wd}\n'
+            f'Neurons: {self.hidden_layers}  Distilled: {self.distilled}'
+        )
         plt.legend(loc='lower right')
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig(f'pysrc/metric_plots/training_acc_{model_name}_{dataset_name}_{self.distilled}_{datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")[:-3]}.png')
+
+        # 6) Save
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        plt.savefig(f'pysrc/metric_plots/training_acc_{model_name}_{dataset_name}_{ts}.png')
+        plt.close()
+
 
     def displayLosses(self, model_name, dataset_name):
-        plt.figure(figsize=(8, 5))
+        all_epochs = []
+        for k, case in self.cases.items():
+            if k.startswith("train"):
+                all_epochs += [epoch for (_, epoch) in case["losses"]]
+        n_epochs = max(all_epochs) + 1       # e.g. 0..9 → 10 epochs
+        epoch_indices = np.arange(1, n_epochs+1)
 
-        for case in self.cases.keys():
-            if 'train' in case:
-                fold=case[5]
-                losses = self.cases[case]['losses']
-                x = []
-                y = []
+        fold_ids = sorted(int(k[len("train"):]) for k in self.cases if k.startswith("train"))
+        per_fold_epoch_loss = []
+        for f in fold_ids:
+            # bucket all batch losses by epoch
+            buckets = [[] for _ in range(n_epochs)]
+            for loss, epoch in self.cases[f"train{f}"]["losses"]:
+                buckets[epoch].append(loss)
+            # average each bucket
+            avg_losses = [np.mean(b) if len(b)>0 else np.nan for b in buckets]
+            per_fold_epoch_loss.append(avg_losses)
 
-                for (loss, epoch) in losses:
-                    x.append(epoch), y.append(loss)
+        loss_mat = np.vstack(per_fold_epoch_loss)
+        mean_loss = loss_mat.mean(axis=0)
+        std_loss  = loss_mat.std(axis=0)
 
-                plt.plot(x, y, linewidth=0.7)
-                plt.xlabel('Epoch')
-                plt.ylabel('Loss')
-                plt.title(f'{model_name.upper()} {dataset_name.upper()} loss over training time')
-                plt.legend()
-                plt.grid(True)
-                plt.tight_layout()
-                plt.savefig(f'pysrc/metric_plots/training_loss__{model_name}_{dataset_name}_fold{fold}__{datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")[:-3]}.png')
+        plt.figure(figsize=(8,5))
+        plt.plot(epoch_indices, mean_loss, color='tab:blue', lw=2, label="Mean train loss")
+        plt.fill_between(epoch_indices,
+                        mean_loss - std_loss,
+                        mean_loss + std_loss,
+                        color='tab:blue', alpha=0.2, label="±1 std dev")
 
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title(
+            f"{model_name.upper()} {dataset_name.upper()} Training Loss\n"
+            f"(Mean ± Std over {len(fold_ids)} folds)"
+        )
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
 
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        out = f"pysrc/metric_plots/training_loss_{model_name}_{dataset_name}_{ts}.png"
+        plt.savefig(out)
+        plt.close()
 
+   
     def addConfMatrix(self, case, y_true, y_pred, title=None):
         cm = confusion_matrix(y_true, y_pred)
         if case not in self.cases:

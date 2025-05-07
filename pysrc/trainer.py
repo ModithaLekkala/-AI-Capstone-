@@ -45,7 +45,7 @@ class Trainer():
         self.kfolder = StratifiedShuffleSplit(n_splits=self.args.folds, test_size=0.2, random_state=self.random_seed)
         self.kfold_idx = 0
         self.best_acc = -np.inf
-        self.metrics_manager = MetricsManager(self.args.lr, self.args.epochs, self.args.scheduler, ast.literal_eval(self.cfg.get('MODEL', 'OUT_FEATURES')), self.args.distilled)
+        self.metrics_manager = MetricsManager(self.args.lr, self.args.epochs, self.args.scheduler, ast.literal_eval(self.cfg.get('MODEL', 'OUT_FEATURES')), self.args.distilled, self.args.weight_decay)
         self.reset_stats()
         
         # preprocess dataset and dataloader
@@ -101,17 +101,6 @@ class Trainer():
             self.X = self.X[sel]
             self.Y = self.Y[sel]
 
-        # loss
-        if args.loss == 'SqrHinge':
-            self.criterion = SqrHingeLoss()
-            self.model.seq.append(nn.Tanh())
-        elif args.loss == 'CrossEntropy':
-            self.criterion = nn.CrossEntropyLoss()
-        else:
-            raise ValueError(f"{args.loss} not supported.")
-        self.criterion = self.criterion.to(device=self.device)
-        
-
     def train_model(self):
         torch.autograd.set_detect_anomaly(True)
     
@@ -126,7 +115,17 @@ class Trainer():
             self.valid_dataloader = DataLoader(val_ds, batch_size=self.args.batch_size, shuffle=False)
             self.train_case = f'{TRAIN}{self.kfold_idx}'
             self.valid_case = f'{VALID}{self.kfold_idx}'
-            
+
+            # loss
+            if self.args.loss == 'SqrHinge':
+                self.criterion = SqrHingeLoss()
+                self.model.features.append(nn.Tanh())
+            elif self.args.loss == 'CrossEntropy':
+                self.criterion = nn.CrossEntropyLoss()
+            else:
+                raise ValueError(f"{self.args.loss} not supported.")
+            self.criterion = self.criterion.to(device=self.device)
+        
             # optimizer
             if self.args.optim == 'ADAM':
                 self.optimizer = optim.Adam(self.model.parameters(),  lr=self.args.lr, weight_decay=self.args.weight_decay)
@@ -146,10 +145,10 @@ class Trainer():
             # save binary weight in hex format
             if self.args.distilled:
                 self.train_fold_distilled()
-                binw = self.model.get_bin_weights()
-                binw[binw == -1] = 0
-                for ix, layerw in enumerate(binw):
-                    print(f"Layer {ix} binarized weights shape: {layerw.shape}")
+                # binw = self.model.get_bin_weights()
+                # binw[binw == -1] = 0
+                # for ix, layerw in enumerate(binw):
+                #     print(f"Layer {ix} binarized weights shape: {layerw.shape}")
 
 
             else:

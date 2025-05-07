@@ -51,7 +51,7 @@ class SmallerNN(nn.Module):
                     bias=False,
                     weight_quant=CommonBinWeightQuant))
             in_features = out_features
-            self.features.append(nn.BatchNorm1d(num_features=in_features))
+            self.features.append(nn.BatchNorm1d(num_features=in_features, momentum=0.9))
             self.features.append(qnn.QuantIdentity(act_quant=CommonBinActQuant))
             # self.features.append(nn.Dropout(p=DROPOUT))
 
