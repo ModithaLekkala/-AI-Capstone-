@@ -5,6 +5,13 @@ import pandas as pd
 
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
 from configparser import ConfigParser
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import auc
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import f1_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import roc_curve
 
 import warnings
 
@@ -150,3 +157,26 @@ def suppress_warnings():
         category=UserWarning,
     )
 
+def metrics_binary_dataset(y_test, y_pred, y_score, is_bnn=False):
+    
+    if is_bnn:
+        # Make y_test 1D
+        y_test = np.argmax(y_test, axis=1)
+        
+    a = accuracy_score(y_test, y_pred)
+    p = precision_score(y_test, y_pred)
+    r = recall_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred, average='macro')
+
+    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+    
+    tpr = r
+    fpr = fp / (fp+tn)
+    fnr = fn / (fn+tp)
+    tnr = tn / (tn+fp)
+    
+    y_score = pd.get_dummies(y_pred).values
+    fpr_, tpr_, _ = roc_curve(y_test, y_score[:, 1])
+    roc_auc = auc(fpr_, tpr_)
+
+    return a, p, r, tpr, fpr, fnr, f1, roc_auc

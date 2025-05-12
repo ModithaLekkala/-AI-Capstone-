@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay        
 import numpy as np
 from datetime import datetime
+import csv
+
 
 RED = "\033[91m"
 GREEN = "\033[92m"
@@ -26,9 +28,21 @@ class MetricsManager():
         self.cases[case] = {
             'cms': [],
             'cms_names': [],
-            'accuracies': [],
-            'losses': []
+            'accuracy': [],
+            'losses': [],
+            'precision': [],
+            'f1': [],
+            'recall': []
         }
+
+    def addF1(self, case, f1):
+        self.cases[case]['f1'].append(f1)
+
+    def addRec(self, case, recall):
+        self.cases[case]['recall'].append(recall)
+
+    def addPrec(self, case, prec):
+        self.cases[case]['precision'].append(prec)
     
     def addLrRegion(self, item):
         if item not in self.lr_regions:
@@ -55,7 +69,7 @@ class MetricsManager():
     def addAcc(self, case, acc):
         if case not in self.cases:
             self.initCase(case)
-        self.cases[case]['accuracies'].append(acc)
+        self.cases[case]['accuracy'].append(acc)
         if acc > self.bestacc:
             self.bestacc = acc
             self.bestfold = case[5]
@@ -67,11 +81,12 @@ class MetricsManager():
 
     def displayTrainEvalAcc(self, model_name, dataset_name, epochs):
         epochs = list(range(1, epochs+1))
-        plt.figure(figsize=(10, 6))
+        plt.rcParams.update({'font.size': 18})
+        plt.figure(figsize=(8, 5))
 
         folds = sorted({int(k[len('train'):]) for k in self.cases if k.startswith('train')})
-        train_mat = np.vstack([self.cases[f'train{f}']['accuracies'] for f in folds])
-        valid_mat = np.vstack([self.cases[f'valid{f}']['accuracies'] for f in folds])
+        train_mat = np.vstack([self.cases[f'train{f}']['accuracy'] for f in folds])
+        valid_mat = np.vstack([self.cases[f'valid{f}']['accuracy'] for f in folds])
 
         mean_train = train_mat.mean(axis=0)
         std_train  = train_mat.std(axis=0)
@@ -98,26 +113,51 @@ class MetricsManager():
             xmid = (xmin + xmax) / 2
             yloc = y_max - 0.5 * (y_max - y_min)
             plt.text(xmid, yloc, f'lr:{lr:.0e}',
-                    ha='center', va='center', fontsize=10, alpha=0.8)
+                    ha='center', va='center', alpha=0.8)
 
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
         plt.ylim(top=1)
-        plt.title(
-            f'Training {model_name.upper()} model\n'
-            f'Balanced dataset: {dataset_name.upper()}\n'
-            f'Lr scheduler: {self.scheduler}  Init LR: {self.init_lr:.1e}  '
-            f'Weight decay: {self.init_wd}\n'
-            f'Neurons: {self.hidden_layers}  Distilled: {self.distilled}'
-        )
+        # Add a caption describing the plot. [Quale e' il messaggio di questo plot, cosa devo guardare?]
         plt.legend(loc='lower right')
-        plt.grid(True)
+        plt.grid(False)
         plt.tight_layout()
-
-        # 6) Save
-        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        plt.savefig(f'pysrc/metric_plots/training_acc_{model_name}_{dataset_name}_{ts}.png')
+        now = datetime.now().strftime("%Y%m%d-%H%M%S")
+        out = f'pysrc/metric_plots/training_acc_{model_name}_{dataset_name}_{now}.png'
+        plt.savefig(out)
         plt.close()
+        print(f'Saved training chart to {out}')
+
+    def saveEvalResults(self, model_name):
+        eval_cases = sorted(
+            [c for c in self.cases if c.startswith('evalu')],
+            key=lambda c: int(c[len('evalu'):])
+        )
+
+        metrics = ['accuracy', 'precision', 'recall', 'f1']
+        summary = []
+
+        for m in metrics:
+            # final value of metric m for each fold
+            vals = []
+            for c in eval_cases:
+                arr = self.cases[c].get(m, [])
+                if arr:
+                    vals.append(arr[-1])
+            vals = np.array(vals, dtype=float)
+            mean = float(vals.mean()) if vals.size else float('nan')
+            std  = float(vals.std())  if vals.size else float('nan')
+            summary.append((m.rstrip('s'), mean, std))
+
+        # 4) Write to CSV
+        out_filename = f"pysrc/metric_plots/results_{model_name}.csv"
+        with open(out_filename, 'w', newline='') as fp:
+            writer = csv.writer(fp)
+            writer.writerow(['metric', 'mean', 'std'])
+            for metric_name, mean, std in summary:
+                writer.writerow([metric_name, f"{mean:.6f}", f"{std:.6f}"])
+
+        print(f"Saved evaluation summary to {out_filename}")
 
 
     def displayLosses(self, model_name, dataset_name):
@@ -148,24 +188,20 @@ class MetricsManager():
         plt.fill_between(epoch_indices,
                         mean_loss - std_loss,
                         mean_loss + std_loss,
-                        color='tab:blue', alpha=0.2, label="±1 std dev")
+                        color='tab:blue', alpha=0.2, label="Standard Deviation")
 
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
-        plt.title(
-            f"{model_name.upper()} {dataset_name.upper()} Training Loss\n"
-            f"(Mean ± Std over {len(fold_ids)} folds)"
-        )
         plt.legend()
-        plt.grid(True)
+        plt.grid(False)
         plt.tight_layout()
-
-        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        out = f"pysrc/metric_plots/training_loss_{model_name}_{dataset_name}_{ts}.png"
+        plt.rcParams.update({'font.size': 18})
+        now = datetime.now().strftime("%Y%m%d-%H%M%S")
+        out = f"pysrc/metric_plots/training_loss_{model_name}_{dataset_name}_{now}.png"
         plt.savefig(out)
         plt.close()
+        print(f'Saved loss chart to {out}')
 
-   
     def addConfMatrix(self, case, y_true, y_pred, title=None):
         cm = confusion_matrix(y_true, y_pred)
         if case not in self.cases:
