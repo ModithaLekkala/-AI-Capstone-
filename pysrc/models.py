@@ -40,7 +40,6 @@ class SmallerNN(nn.Module):
         self.n_layers = len(hidden_layers)+1
 
         self.features = nn.ModuleList()
-        self.features.append(qnn.QuantIdentity(act_quant=CommonBinActQuant))
         in_features=input_size
 
         for out_features in hidden_layers:

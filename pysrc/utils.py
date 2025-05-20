@@ -99,7 +99,7 @@ def data_preprocess(data: pd.DataFrame, spec_dict, binarization=False):
     return samples, labels.values, og_samples
 
 
-def data_binarization(samples: pd.DataFrame):
+def data_binarization(samples: pd.DataFrame, get_only_size=False):
     binft_totsize = 0
     binfeats_desc = {}
 
@@ -112,6 +112,10 @@ def data_binarization(samples: pd.DataFrame):
         binft_totsize+=bin_width
     print(f'Tot bit needed per sample: {binft_totsize}')
     print()
+
+    if get_only_size is True:
+        return None, binft_totsize
+    
     print('* FEATURE BINARIZATION *')
     bin_samples = np.zeros((samples.shape[0], binft_totsize))
     for i, feature_row in samples.iterrows():

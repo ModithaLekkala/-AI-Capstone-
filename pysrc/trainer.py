@@ -150,7 +150,7 @@ class Trainer():
         self.model.load_state_dict(best_fold_w)
         final_w, final_acc = self.train(self.X_tr, self.Y_tr)
 
-        #TODO Make hyperparameters search and make last training from 0 with that finded params
+        #TODO Make hyperparameters search and make last training from 0 with that found params
         
         # export
         best_fold_out = f'{self.args.checkpoints_path}/best_fold_{self.model_name}_{self.dataset_name}_acc{final_acc:.3f}.pth'
@@ -295,14 +295,13 @@ class Trainer():
             if(X_val is not None and Y_val is not None):
                 with torch.no_grad():
                     valid_acc, valid_loss = self.val_model(X_val, Y_val)
-            
-                if(fold_acc < valid_acc):
-                    fold_acc = valid_acc
-                    fold_weights = self.model.state_dict()
+                acc_cmp = valid_acc
             else:
-                if(fold_acc < acc):
-                    fold_acc = acc
-                    fold_weights = self.model.state_dict()
+                acc_cmp = acc
+
+            if(fold_acc < acc_cmp):
+                fold_acc = acc_cmp
+                fold_weights = self.model.state_dict()
 
             # lr decay
             if self.scheduler != None:
@@ -358,6 +357,7 @@ class Trainer():
         self.metrics_manager.addAcc(self.valid_case, avg_acc)
         self.metrics_manager.addConfMatrix(self.valid_case, truth, preds, f'Epoch n{self.epoch}')
         self.metrics_manager.batchLog(mode=VALID, epoch_no=self.epoch, curr_len=0, dataset_len=len(dataloader.dataset), loss=loss, acc=avg_acc, kfold=self.kfold_idx, epochs=self.args.epochs)
+        print('\n')
 
         return avg_acc, avg_loss
     
@@ -381,7 +381,7 @@ class Trainer():
             preds = np.hstack((preds, cls))
             truth = np.hstack((truth, Y_test))
 
-        # add epoch confusion matrix to stats 
+        # add stats 
         a, p, r, _, _, _, f1, _ = metrics_binary_dataset(truth, preds, pd.get_dummies(preds).values)
         self.metrics_manager.addAcc(self.evalu_case, a)
         self.metrics_manager.addPrec(self.evalu_case, p)
