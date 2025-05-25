@@ -204,8 +204,8 @@ pip-selfcheck.json
 .history
 .ionide
 
-p4src/*
-!p4src/l2_basic_forwarding.p4
+p4src/common
+p4src/obj
 topo.json
 topology.json
 datasets/*
