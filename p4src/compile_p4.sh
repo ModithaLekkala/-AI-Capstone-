@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# THIS SCRIPT JUST COMPILE A P4 PROGRAM
+
 # Check that at least one argument was provided
 if [ $# -lt 1 ]; then
   echo "Missing p4_file to compile."
@@ -22,4 +24,4 @@ fi
 p4_file="$1"
 
 echo "Start compiling of $p4_file with $compiler ($target / $arch)…"
-$compiler --target "$target" --arch "$arch" --create-graphs --verbose 3 --std p4-16 -o ./obj "$p4_file"
+$compiler --target "$target" --arch "$arch" --create-graphs --verbose 3 --std p4-16 -o ./build "$p4_file"

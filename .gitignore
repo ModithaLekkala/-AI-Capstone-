@@ -204,8 +204,7 @@ pip-selfcheck.json
 .history
 .ionide
 
-p4src/common
-p4src/obj
+p4src/build
 topo.json
 topology.json
 datasets/*

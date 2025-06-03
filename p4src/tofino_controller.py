@@ -12,7 +12,7 @@ for switch, data in topo.get_p4rtswitches().items():
 
 controller = controllers['s1']                        
 
-controller.table_add('dmac', 'forward', ['00:00:0a:00:00:01'], ['1'])
-controller.table_add('dmac', 'forward', ['00:00:0a:00:00:02'], ['2'])
-controller.table_add('dmac', 'forward', ['00:00:0a:00:00:03'], ['3'])
-controller.table_add('dmac', 'forward', ['00:00:0a:00:00:04'], ['4'])
+controller.table_add('echo_table', 'send_back', ['00:00:0a:00:00:01'], ['1'])
+controller.table_add('echo_table', 'send_back', ['00:00:0a:00:00:02'], ['2'])
+controller.table_add('echo_table', 'send_back', ['00:00:0a:00:00:03'], ['3'])
+controller.table_add('echo_table', 'send_back', ['00:00:0a:00:00:04'], ['4'])

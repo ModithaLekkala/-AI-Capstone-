@@ -18,6 +18,9 @@ parser IngressParser(
     out ingress_intrinsic_metadata_t ig_intr_md)
 {
     state start {
+		pkt.extract(ig_intr_md);
+        pkt.advance(PORT_METADATA_SIZE);
+
 		pkt.extract(ig_hdr.ethernet);
 		transition select(ig_hdr.ethernet.ether_type) {
 			BNN_PKT_ETYPE : bnn_found;
@@ -218,9 +221,13 @@ control Ingress(
 		ig_md.meta32_8.x4_0 = ig_md.meta32_8.x1_0;
 		ig_md.meta32_8.x4_1 = ig_md.meta32_8.x1_0;
 		ig_md.meta32_8.x5_0 = ig_md.meta32_8.x1_0;
+		ig_md.meta32_8.x5_1 = ig_md.meta32_8.x1_0;
 		ig_md.meta32_8.x6_0 = ig_md.meta32_8.x1_0;
+		ig_md.meta32_8.x6_1 = ig_md.meta32_8.x1_0;
 		ig_md.meta32_8.x7_0 = ig_md.meta32_8.x1_0;
-		// ig_md.meta32_8.x8_0 = ig_md.meta32_8.x1_0;
+		ig_md.meta32_8.x7_1 = ig_md.meta32_8.x1_0;
+		ig_md.meta32_8.x8_0 = ig_md.meta32_8.x1_0;
+		ig_md.meta32_8.x8_1 = ig_md.meta32_8.x1_0;
 	}
 
 	action l1_fold(){
@@ -239,7 +246,7 @@ control Ingress(
 
 	action get_nn_input(){
 		//Here we can select the input features vector from packet header.
-		ig_md.meta32_8.x1_0 = ig_hdr.ipv4.src_addr;
+		ig_md.meta32_8.x1_0 = ig_hdr.bnn_pkt.x;
 
 		//copy ig_md.meta32_8.x1_0 into ig_md.meta32_8.x**_0 and ig_md.meta32_8.x**_1
 		mcpy_32_8();
@@ -247,7 +254,7 @@ control Ingress(
 
 	action get_nn_output(){
 		//Here we can select the destination packet header
-		ig_hdr.ipv4.src_addr = ig_md.meta32_32.x1_0;
+		ig_hdr.bnn_pkt.x = ig_md.meta32_32.x1_0;
 	}
 
 	action fold() {
@@ -311,7 +318,7 @@ control Ingress(
 			send_back;
 			_drop;
 		}
-		const default_action = _drop();
+		const default_action = send_back();
 		const entries = {
 			MAC_SND : send_back();
 		}
@@ -367,6 +374,8 @@ control Ingress(
 		fold_table.apply();
 		get_nn_output_table.apply();
 		send_back_table.apply();
+
+		ig_tm_md.bypass_egress = 1w1;
 	}
 }
 
@@ -377,7 +386,7 @@ control IngressDeparser(
     in ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md)
 {
     apply {
-        // emit headers for out-of-ingress packets here
+		pkt.emit(ig_hdr);
     }
 }
 
