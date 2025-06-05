@@ -68,7 +68,7 @@ header ipv4_h {
 }
 
 header bnn_pkt_h {
-	bit<16> x;
+	bit<32> x;
 }
 
 header l1_t {

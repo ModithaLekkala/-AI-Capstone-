@@ -24,7 +24,9 @@
     if(hdr.recirc.pop8 >= 0x40) hdr.bnn_pkt.x[##frst##:##frst##] = 0; else hdr.bnn_pkt.x[##frst##:##frst##] = 1; \
 
 #define WIDTH_IX 7
-#define HEIGTH_IX 1
+#define HEIGTH_IX 3
+#define INPUT_LEN 128
+#define L1_WEIGHT_TB_SIZE 32
 
 parser IngressParser(
     packet_in pkt,
@@ -117,7 +119,7 @@ control Ingress(
             hdr.recirc.pop_recirc: exact;
             hdr.recirc.nrs_recirc: exact;
         }
-        size = 16;
+        size = L1_WEIGHT_TB_SIZE;
     }
 
     WRITE_POP_PROC(1)
@@ -183,7 +185,13 @@ control Ingress(
             hdr.ethernet.src_addr = tmp;
             ig_tm_md.ucast_egress_port = (bit<9>)hdr.recirc.original_port;
         } else {
-            WRITE_SIGN(8,9,10,11,12,13,14,15)
+            if(hdr.recirc.nrs_recirc == 0) {
+                WRITE_SIGN(24,25,26,27,28,29,30,31)
+            } else if(hdr.recirc.nrs_recirc == 1) {
+                WRITE_SIGN(16,17,18,19,20,21,22,23)
+            } else if(hdr.recirc.nrs_recirc == 2) {
+                WRITE_SIGN(8,9,10,11,12,13,14,15)
+            }
             hdr.recirc.setValid();
 
             free_pop();

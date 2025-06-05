@@ -1,4 +1,5 @@
 import numpy as np 
+from pycommon import hex_input, hex_w, nn
 
 def generate_16bit_hex():
     """
@@ -51,29 +52,8 @@ print("→ Done loading pop1..pop16 (all 16-bit keys → 1-hex-digit popcount)."
 #     Here, let num_neuron_batches = 2 (two “neuron batches”), so
 #     each “weight batch” is a 256-bit (=32 hex chars) string.
 # -------------------------------------------------
-nn = [128, 16]
-
 parallel_bit_cap = (16//4)
 parallel_neurons_cap = 8
-
-hex_w = [
-    "e97be2dd1d113e46777483d626c89129",
-    "1a568f08b5d7c9b867c20d1fcd1618e5",
-    "db83d17c296c36c85d023cac8c1d26e5",
-    "b9b8c1110dec94703ab4cb70b07e9a0a",
-    "b158c7809c71049238ce5e6e88c89416",
-    "b2742753d81449f9fb8295c1a6ecf097",
-    "cc5e7ca7e16b789aa061da83820cdc80",
-    "28daae2b4b87a45656a12a06111b4c7d",
-    "236539e62c271bb8ca5fb0a8c7100291",
-    "446e63b9bf3c1ec1a6d3e43a6efc5299",
-    "a402b23ae2b0eb5a747eb77fdd335ce6",
-    "02908710c934b52a2f4dcb95db3cbb4d",
-    "b39dae3d78e2737e0bf5788e8b030ac1",
-    "82d6e357dafcfc7fdd0a0283041757e3",
-    "488b3e8229356e21b8393ceb8b44311c",
-    "819ac144d0135a443e5164e7eca03bc6"
-]
 
 assert len(hex_w) == nn[1], \
     'weight no. different from neurons no. they must match'
@@ -133,7 +113,7 @@ print("→ Done loading all 128-bit weights into l1_weights (two-key table).")
 #  5) Finally, split a single 256-bit “hex_input” into sixteen 16-bit chunks
 #     and write them into bnn_input_reg[0..15].
 # -------------------------------------------------
-hex_input = "e51411243381365b9ea36fbeedd94689"
+# hex_input = "e51411243381365b9ea36fbeedd94689"
 assert len(hex_input) == 32, "hex_input must be exactly 32 hex digits"
 
 # Make sixteen 4-digit substrings:
