@@ -5,11 +5,11 @@
 #include "common/headers.p4"
 #include "common/util.p4"
 
-#define WRITE_POP_STEP(x)\
-	cpy_32_8();\
-	step_pop_32_8_and(m##x##_32);\
-	step_pop_32_8_shift(##x);\
-	step_pop_32_8_shift_and(m##x##_32);\
+#define WRITE_POP_STEP(x) \
+	cpy_32_8(); \
+	step_pop_32_8_and(m##x##_32); \
+	step_pop_32_8_shift(##x); \
+	step_pop_32_8_shift_and(m##x##_32); \
 
 parser IngressParser(
     packet_in pkt,

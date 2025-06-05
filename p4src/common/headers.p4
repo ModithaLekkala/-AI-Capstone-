@@ -68,7 +68,7 @@ header ipv4_h {
 }
 
 header bnn_pkt_h {
-	bit<8> x;
+	bit<16> x;
 }
 
 header l1_t {
@@ -86,6 +86,7 @@ header recirc_h {
     bit<16> original_port;
     bit<8> pop_recirc;
     bit<8> nrs_recirc;
+    
     popcount_t pop1;
     popcount_t pop2;
     popcount_t pop3;
