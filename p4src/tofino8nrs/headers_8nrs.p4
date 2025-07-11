@@ -79,9 +79,53 @@ header bnn_pkt {
     popcount_t pop2;
     popcount_t pop3;
     popcount_t pop4;
+    popcount_t pop5;
+    popcount_t pop6;
+    popcount_t pop7;
+    popcount_t pop8;
+}
+
+// header bnn_pkt {
+//     bit<32> x;
+// }
+
+header recirc_h {
+    // bit<16> original_port;
+    bit<8> pop_recirc;
+    bit<8> nrs_recirc;
+    
+    popcount_t pop1;
+    popcount_t pop2;
+    popcount_t pop3;
+    popcount_t pop4;
+    popcount_t pop5;
+    popcount_t pop6;
+    popcount_t pop7;
+    popcount_t pop8;
 }
 
 struct headers_t {
 	ethernet_h ethernet;
+	// ipv4_h ipv4;
     bnn_pkt bnn_pkt;
+    // recirc_h recirc;
+}
+
+struct metadata_t {
+    // bit<16> nr1;
+    // bit<16> nr2;
+    // bit<16> nr3;
+    // bit<16> nr4;
+    // bit<16> nr5;
+    // bit<16> nr6;
+    // bit<16> nr7;
+    // bit<16> nr8;
+    // bit<16> nr1_w;
+    // bit<16> nr2_w;
+    // bit<16> nr3_w;
+    // bit<16> nr4_w;
+    // bit<16> nr5_w;
+    // bit<16> nr6_w;
+    // bit<16> nr7_w;
+    // bit<16> nr8_w;    
 }

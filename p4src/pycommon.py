@@ -31,10 +31,20 @@ hex_w = [
     '3eece4370e64e0a06ee1940bb2361df4',
     'c988f4c2cc501c291d5a0785613e9c84',
     '899b03a01486aa3010ae69fb10e4bab9'
+]
 
+hex_w2 = [
+    '1bace107',
+    '448cdca1',
+    'adc5f557',
+    '3543e7ae',
+    '4e134acf',
+    '33d72ca6',
+    '65c4512a',
+    '8f158b9b'
 ]
 
 hex_input = "e51411243381365b9ea36fbeedd94689"
 
-nn = [128, 32]
+nn = [128, 32, 8]
 

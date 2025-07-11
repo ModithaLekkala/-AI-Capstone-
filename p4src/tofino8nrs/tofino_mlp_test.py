@@ -1,25 +1,13 @@
 from scapy.all import srp1
 from scapy.all import Packet
-from scapy.all import Ether, IntField, ByteField, ShortField
+from scapy.all import Ether, IntField
 from scapy.all import bind_layers
 from mlp import MLP
 from pycommon import hex_input, hex_w, nn, hex_w2
 
 class BNN_pkt(Packet):
     name = "BNN_pkt"
-    fields_desc = [ 
-        ByteField("layer_no", 0x00),
-        IntField("l0_out", 0x000000),
-        ByteField("l1_out", 0x00),
-
-        ByteField("pop_recirc", 0x00),
-        ByteField("nrs_recirc", 0x00),
-
-        ByteField("pop1", 0x00),
-        ByteField("pop2", 0x00),
-        ByteField("pop3", 0x00),
-        ByteField("pop4", 0x00),
-    ]
+    fields_desc = [ IntField("x", 0x000000)]
 
 
 bind_layers(Ether, BNN_pkt, type=0x2323)
@@ -47,7 +35,7 @@ def main():
         expected = mlp.do_inference(int(hex_input, 16), w_mlp, True)
         print(f'expected: {expected}')
 
-        obtained = resp[BNN_pkt].l1_out
+        obtained = resp[BNN_pkt].x
         print(f'obtained: {obtained}')
 
         match = expected == obtained

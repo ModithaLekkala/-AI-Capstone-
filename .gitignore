@@ -211,5 +211,6 @@ datasets/*
 pysrc/models/*
 pysrc/metric_plots/*
 log/*
+p4src/log/*
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv
