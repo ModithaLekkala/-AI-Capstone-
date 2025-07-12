@@ -71,6 +71,7 @@ header bnn_pkt {
     bit<8> layer_no;
     bit<32> l0_out;
     bit<8> l1_out;
+    bit<8> l2_out;
 
     bit<8> pop_recirc;
     bit<8> nrs_recirc;

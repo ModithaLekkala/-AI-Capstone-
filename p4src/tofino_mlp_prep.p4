@@ -4,6 +4,19 @@
 #include <tna.p4>
 #include "common/headers.p4"
 #include "common/util.p4"
+
+#define WIDTH_IX_L0 7 /* (l0 weights width. / 16) -1  */
+#define WIDTH_IX_L1 1
+#define WIDTH_IX_L2 0
+#define HEIGTH_IX_L0 7 /* (l0 neurons no. / 16) -1  */
+#define HEIGTH_IX_L1 1
+#define HEIGTH_IX_L2 0
+#define INPUT_LEN 128
+#define L0_WEIGHT_TB_SIZE 64
+#define L1_WEIGHT_TB_SIZE 16
+#define L2_WEIGHT_TB_SIZE 1
+#define LAST_LAYER_NO 2 /* number of layers -1 */
+
 #define POP_ACCUMULATE(y)\
     action pop_act##y(popcount_t popvalue) { hdr.bnn_pkt.pop##y## = hdr.bnn_pkt.pop##y## + popvalue;} \
     table pop##y{ \
@@ -35,15 +48,6 @@
     nr2 = nr1; \
     nr3 = nr1; \
     nr4 = nr1; \
-
-#define WIDTH_IX_L0 7
-#define WIDTH_IX_L1 1
-#define HEIGTH_IX_L0 7
-#define HEIGTH_IX_L1 1
-#define INPUT_LEN 128
-#define L0_WEIGHT_TB_SIZE 64
-#define L1_WEIGHT_TB_SIZE 16
-#define LAST_LAYER_NO 1
 
 parser IngressParser(
     packet_in pkt,
@@ -84,7 +88,7 @@ control Ingress(
     bit<16> nr2=0;
     bit<16> nr3=0;
     bit<16> nr4=0;
-
+    
     Register<bit<16>, bit<16>>(8, 0x5555) bnn_input_reg;
     RegisterAction<bit<16>,bit<8>, bit<16>>(bnn_input_reg) get_bnn_input_reg = {
         void apply(inout bit<16> bnn_input, out bit<16> out_var) {
@@ -93,7 +97,7 @@ control Ingress(
     };
 
 
-action get_weights(bit<16> nr1_w, bit<16> nr2_w, bit<16> nr3_w, bit<16> nr4_w) {
+    action get_weights(bit<16> nr1_w, bit<16> nr2_w, bit<16> nr3_w, bit<16> nr4_w) {
         nr1 = nr1_w ^ nr1;
         nr2 = nr2_w ^ nr2;
         nr3 = nr3_w ^ nr3;
@@ -116,6 +120,15 @@ action get_weights(bit<16> nr1_w, bit<16> nr2_w, bit<16> nr3_w, bit<16> nr4_w) {
             hdr.bnn_pkt.nrs_recirc: exact;
         }
         size = L1_WEIGHT_TB_SIZE;
+    }
+
+    table l2_weights{
+        actions = { get_weights; }
+        key = { 
+            hdr.bnn_pkt.pop_recirc: exact;
+            hdr.bnn_pkt.nrs_recirc: exact;
+        }
+        size = L2_WEIGHT_TB_SIZE;
     }
 
     action pop_recirc() {
@@ -160,19 +173,15 @@ action get_weights(bit<16> nr1_w, bit<16> nr2_w, bit<16> nr3_w, bit<16> nr4_w) {
             hdr.bnn_pkt.nrs_recirc: ternary;
         }
         const entries = {
-            // match layer_no=0, pop_recirc==WIDTH_IX_L0, nrs_recirc==HEIGTH_IX_L0
             ( 0, WIDTH_IX_L0, HEIGTH_IX_L0 &&& 0xFF ) : to_next_layer();
-
-            // match layer_no=1, pop_recirc==WIDTH_IX_L1, nrs_recirc==HEIGTH_IX_L1
-            ( 1, WIDTH_IX_L1, HEIGTH_IX_L1 &&& 0xFF ) : send_back();
-
-            // ─── when pop_recirc == WIDTH_IX but still nrs_recirc < HEIGTH ────────
-            // mask=0x00 means “don’t care” → catches *all* nrs_recirc ≠ HEIGTH
+            ( 1, WIDTH_IX_L1, HEIGTH_IX_L1 &&& 0xFF ) : to_next_layer();
+            ( 2, WIDTH_IX_L2, HEIGTH_IX_L2 &&& 0xFF ) : send_back();
             ( 0, WIDTH_IX_L0, 0 &&& 0x00 )            : nrs_recirc();
             ( 1, WIDTH_IX_L1, 0 &&& 0x00 )            : nrs_recirc();
+            ( 2, WIDTH_IX_L2, 0 &&& 0x00 )            : nrs_recirc();
         }
         const default_action = pop_recirc();
-        size=4;
+        size=(LAST_LAYER_NO+1)+(LAST_LAYER_NO+1);
     }
 
     POP_ACCUMULATE(1)
@@ -198,6 +207,10 @@ action get_weights(bit<16> nr1_w, bit<16> nr2_w, bit<16> nr3_w, bit<16> nr4_w) {
             }
             COPY()
             l1_weights.apply();
+        } else if(hdr.bnn_pkt.layer_no == 2){
+            nr1 = (bit<16>)hdr.bnn_pkt.l1_out;
+            nr2 = nr1; //COPY()
+            l2_weights.apply();
         }
 
         APPLY_POP()
@@ -227,17 +240,15 @@ action get_weights(bit<16> nr1_w, bit<16> nr2_w, bit<16> nr3_w, bit<16> nr4_w) {
             } else if(hdr.bnn_pkt.nrs_recirc == 1) {
                 WRITE_SIGN(0,1,2,3, l1_out, 0x10)
             }
+        } else if(hdr.bnn_pkt.layer_no == 2 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L2) {
+            if(hdr.bnn_pkt.pop1 >= 0x4) hdr.bnn_pkt.l2_out[1:1] = 0; else hdr.bnn_pkt.l2_out[1:1] = 1;
+            if(hdr.bnn_pkt.pop2 >= 0x4) hdr.bnn_pkt.l2_out[0:0] = 0; else hdr.bnn_pkt.l2_out[0:0] = 1;
         }
         /* -------------------------------------------------------------------- */
 
 
-
-        /*--------------------- EGRESS PORT SELECTION LOGIC --------------------*/
-
-        /* generic orizontal recirculation logic*/
+        /* egress port selection */
         egress_behaviour.apply();
-
-        /*-----------------------------------------------------------------------*/
 
         ig_tm_md.bypass_egress = 1w1;
     }

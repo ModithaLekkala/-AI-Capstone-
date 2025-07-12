@@ -3,14 +3,15 @@ from scapy.all import Packet
 from scapy.all import Ether, IntField, ByteField, ShortField
 from scapy.all import bind_layers
 from mlp import MLP
-from pycommon import hex_input, hex_w, nn, hex_w2
+from pycommon import hex_input, hex_w, nn, hex_w2, hex_w3
 
 class BNN_pkt(Packet):
     name = "BNN_pkt"
     fields_desc = [ 
         ByteField("layer_no", 0x00),
-        IntField("l0_out", 0x000000),
+        IntField ("l0_out", 0x000000),
         ByteField("l1_out", 0x00),
+        ByteField("l2_out", 0x00),
 
         ByteField("pop_recirc", 0x00),
         ByteField("nrs_recirc", 0x00),
@@ -41,14 +42,14 @@ def main():
         resp.show()
 
         # expected = exec_l1_bmlp(hex_input, hex_w)
-        mlp = MLP(nn[0], [nn[1]], nn[-1])
-        w_mlp = hex_lists_to_ints(hex_w, hex_w2)
+        mlp = MLP(nn[0], [nn[1], nn[2]], nn[-1])
+        w_mlp = hex_lists_to_ints(hex_w, hex_w2, hex_w3)
 
         expected = mlp.do_inference(int(hex_input, 16), w_mlp, True)
         print(f'expected: {expected}')
 
-        obtained = resp[BNN_pkt].l1_out
-        print(f'obtained: {obtained}')
+        obtained = resp[BNN_pkt].l2_out
+        print(f'obtained: l0: {resp[BNN_pkt].l0_out} l1: {resp[BNN_pkt].l1_out} l2: {obtained}')
 
         match = expected == obtained
         color = '\033[92m' if match else '\033[91m'
