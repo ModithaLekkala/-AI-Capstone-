@@ -27,10 +27,15 @@
     }
 
 #define WRITE_SIGN(frst, snd, thrd, frth,  layer, th) \
-    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##frth##:##frth##] = 0; else hdr.bnn_pkt.##layer##[##frth##:##frth##] = 1; \
-    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 0; else hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 1; \
-    if(hdr.bnn_pkt.pop3 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1; \
     if(hdr.bnn_pkt.pop4 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1; \
+    if(hdr.bnn_pkt.pop3 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1; \
+    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 0; else hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 1; \
+    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##frth##:##frth##] = 0; else hdr.bnn_pkt.##layer##[##frth##:##frth##] = 1; \
+
+#define WRITE_SIGN_BIN(frst, snd, layer, th) \
+    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1; \
+    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1; \
+
 
 #define APPLY_POP() \
     pop1.apply(); \
@@ -241,8 +246,7 @@ control Ingress(
                 WRITE_SIGN(0,1,2,3, l1_out, 0x10)
             }
         } else if(hdr.bnn_pkt.layer_no == 2 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L2) {
-            if(hdr.bnn_pkt.pop1 >= 0x4) hdr.bnn_pkt.l2_out[1:1] = 0; else hdr.bnn_pkt.l2_out[1:1] = 1;
-            if(hdr.bnn_pkt.pop2 >= 0x4) hdr.bnn_pkt.l2_out[0:0] = 0; else hdr.bnn_pkt.l2_out[0:0] = 1;
+            WRITE_SIGN_BIN(0, 1, l2_out, 0x4)
         }
         /* -------------------------------------------------------------------- */
 
