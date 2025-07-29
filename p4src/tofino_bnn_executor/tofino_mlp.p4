@@ -1,4 +1,3 @@
-// echo.p4
 /* -*- P4_16 -*- */
 #include <core.p4>
 #include <tna.p4>
@@ -18,41 +17,40 @@
 #define LAST_LAYER_NO 2 /* number of layers -1 */
 
 #define POP_ACCUMULATE(y)\
-    action pop_act##y(popcount_t popvalue) { hdr.bnn_pkt.pop##y## = hdr.bnn_pkt.pop##y## + popvalue;} \
-    table pop##y{ \
-        actions = { pop_act##y; } \
-        key = { nr##y##: exact; } \
-        size = 65535; \
-        const default_action = pop_act##y(0xF); \
+    action pop_act##y(popcount_t popvalue) { hdr.bnn_pkt.pop##y## = hdr.bnn_pkt.pop##y## + popvalue;}\
+    table pop##y{\
+        actions = { pop_act##y; }\
+        key = { nr##y##: exact; }\
+        size = 65535;\
+        const default_action = pop_act##y(0xF);
     }
 
-#define WRITE_SIGN(frst, snd, thrd, frth,  layer, th) \
-    if(hdr.bnn_pkt.pop4 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1; \
-    if(hdr.bnn_pkt.pop3 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1; \
-    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 0; else hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 1; \
-    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##frth##:##frth##] = 0; else hdr.bnn_pkt.##layer##[##frth##:##frth##] = 1; \
+#define WRITE_SIGN(frst, snd, thrd, frth,  layer, th)\
+    if(hdr.bnn_pkt.pop4 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1;\
+    if(hdr.bnn_pkt.pop3 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1;\
+    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 0; else hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 1;\
+    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##frth##:##frth##] = 0; else hdr.bnn_pkt.##layer##[##frth##:##frth##] = 1;
 
-#define WRITE_SIGN_BIN(frst, snd, layer, th) \
-    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1; \
-    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1; \
+#define WRITE_SIGN_BIN(frst, snd, layer, th)\
+    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1;\
+    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1;
 
+#define APPLY_POP()\
+    pop1.apply();\
+    pop2.apply();\
+    pop3.apply();\
+    pop4.apply();
 
-#define APPLY_POP() \
-    pop1.apply(); \
-    pop2.apply(); \
-    pop3.apply(); \
-    pop4.apply(); \
+#define FREE_POP()\
+    hdr.bnn_pkt.pop1 = 0;\
+    hdr.bnn_pkt.pop2 = 0;\
+    hdr.bnn_pkt.pop3 = 0;\
+    hdr.bnn_pkt.pop4 = 0;
 
-#define FREE_POP() \
-    hdr.bnn_pkt.pop1 = 0; \
-    hdr.bnn_pkt.pop2 = 0; \
-    hdr.bnn_pkt.pop3 = 0; \
-    hdr.bnn_pkt.pop4 = 0; \
-
-#define COPY() \
-    nr2 = nr1; \
-    nr3 = nr1; \
-    nr4 = nr1; \
+#define COPY()\
+    nr2 = nr1;\
+    nr3 = nr1;\
+    nr4 = nr1;
 
 parser IngressParser(
     packet_in pkt,

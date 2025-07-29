@@ -22,12 +22,13 @@ from models import smaller, deeper
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.model_selection import train_test_split
 
+DATASET_PATH = '/home/sgeraci/slu/inet-hynn/datasets/'
 
 TRAIN = 'train'
 VALID = 'valid'
 EVALU = 'evalu'
-TRAIN_DATASET_PATH = '/home/sgeraci/slu/inet-hynn/datasets/UNSW_NB15_training-set.csv'
-EVALU_DATASET_PATH = '/home/sgeraci/slu/inet-hynn/datasets/UNSW_NB15_testing-set.csv'
+TRAIN_DATASET_PATH = f'{DATASET_PATH}/UNSW_NB15/UNSW_NB15_training-set.csv'
+EVALU_DATASET_PATH = f'{DATASET_PATH}/UNSW_NB15/UNSW_NB15_testing-set.csv'
 
 class Trainer():
     def __init__(self, args):
