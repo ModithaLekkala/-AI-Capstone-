@@ -1,17 +1,16 @@
 /* -*- P4_16 -*- */
 #include <core.p4>
 #include <tna.p4>
-#include "common/headers.p4"
-#include "common/util.p4"
-#include "ingress_parser.p4"
-#include "hash_flows.p4"
-#include "ttl.p4"
-#include "proto.p4"
-#include "bytes.p4"
-#include "pkt_count.p4"
-#include "forward.p4"
-
-
+#include "include/common/headers.p4"
+#include "include/common/util.p4"
+#include "include/hash_flows.p4"
+#include "include/ttl.p4"
+#include "include/proto.p4"
+#include "include/bytes.p4"
+#include "include/pkt_count.p4"
+#include "include/forward.p4"
+#include "include/parsers.p4"
+#include "include/deparsers.p4"
 
 control Ingress(
     inout headers_t hdr,
@@ -23,32 +22,33 @@ control Ingress(
 ){
     Forward() fw;
     FlowHashing() fh;
-    Bytes() bytes;
+    PacketsCounter() pc;
 
     apply {
         /* compute index for flow and reversed flow */
-        // fh.apply(hdr, meta); 
-        // /* sbytes, dbytes */
-        // bytes.apply(hdr, meta);
+        fh.apply(hdr, meta); 
+
+        /* keeps track of analyzed pkts per flow */
+        pc.apply(hdr, meta); 
         
         /* normal forwarding */
         fw.apply(hdr, meta, ig_tm_md,ig_intr_md);
-        ig_tm_md.bypass_egress = 1w1;
     }
 }
 
-
-control IngressDeparser(
-    packet_out      pkt,
-    inout headers_t hdr,
-    in   metadata_t meta,
-    in   ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md)
-{
+control Egress(
+        inout headers_t hdr,
+        inout metadata_t meta,
+        in egress_intrinsic_metadata_t eg_intr_md,
+        in egress_intrinsic_metadata_from_parser_t eg_intr_md_from_prsr,
+        inout egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md,
+        inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
+    
+    Bytes() bytes;
+    
     apply {
-        pkt.emit(hdr.ethernet);
-        pkt.emit(hdr.ipv4);
-        pkt.emit(hdr.tcp);
-        pkt.emit(hdr.udp);
+        /* sbytes, dbytes */
+        bytes.apply(hdr, meta, eg_intr_md);
     }
 }
 
@@ -58,8 +58,8 @@ Pipeline(
     IngressParser(),
     Ingress(),
     IngressDeparser(),
-    EmptyEgressParser(),
-    EmptyEgress(),
-    EmptyEgressDeparser()
+    EgressParser(),
+    Egress(),
+    EgressDeparser()
 ) inethynn;
 Switch(inethynn) main;

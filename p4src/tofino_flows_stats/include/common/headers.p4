@@ -31,9 +31,17 @@ const ether_type_t ETHERTYPE_IPV4 = 0x0800;
 struct empty_header_t {}
 struct empty_metadata_t {}
 
+struct current_flow_stats_t {
+    bit<16> pkts;
+    bit<16> bytes_mean;
+    bit<16> bytes;
+}
+
 struct metadata_t {
     bit<16> flow_index;
     bit<16> reverse_flow_index;
+    current_flow_stats_t curr_flow;
+
     bit<8> sttl;
     bit<8> dttl;
     bit<8> proto;

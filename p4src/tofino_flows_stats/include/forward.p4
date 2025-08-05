@@ -14,7 +14,7 @@ control Forward(
         hdr.ipv4.dst_addr = hdr.ipv4.src_addr;
         hdr.ipv4.src_addr = tmp2;
 
-        ig_tm_md.ucast_egress_port = ig_intr_md.ingress_port;
+        ig_tm_md.ucast_egress_port = 1;
     }
 
     apply {
