@@ -22,13 +22,15 @@ from models import smaller, deeper
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.model_selection import train_test_split
 
-DATASET_PATH = '/home/sgeraci/slu/inet-hynn/datasets/'
+import json
+
+DATASET_PATH = '/home/sgeraci/Desktop/datasets'
 
 TRAIN = 'train'
 VALID = 'valid'
 EVALU = 'evalu'
-TRAIN_DATASET_PATH = f'{DATASET_PATH}/UNSW_NB15/UNSW_NB15_training-set.csv'
-EVALU_DATASET_PATH = f'{DATASET_PATH}/UNSW_NB15/UNSW_NB15_testing-set.csv'
+TRAIN_DATASET_PATH = f'{DATASET_PATH}/UNSW-NB15/UNSW_NB15_training-set.csv'
+EVALU_DATASET_PATH = f'{DATASET_PATH}/UNSW-NB15/UNSW_NB15_testing-set.csv'
 
 class Trainer():
     def __init__(self, args):
@@ -42,7 +44,7 @@ class Trainer():
         self.cfg = get_model_cfg()
         self.num_classes = self.cfg.getint('MODEL', 'NUM_CLASSES')
         self.dataset = self.cfg.get('MODEL', 'DATASET')
-        self.selected_feats = ['sttl', 'ct_srv_dst', 'ct_dst_src_ltm', 'ct_srv_src', 'sbytes', 'smean', 'synack', 'dmean', 'tcprtt', 'ct_src_ltm', 'dbytes', 'service', 'ct_dst_sport_ltm', 'dloss', 'dload', 'ct_dst_ltm', 'sloss', 'swin', 'label']
+        self.selected_feats = json.loads(self.cfg.get('MODEL', 'SELECTED_FEATURES'))
         self.dataset_name = 'balanced' if self.args.balance_dataset else 'vanilla'
         self.kfolder = StratifiedShuffleSplit(n_splits=self.args.folds, test_size=0.1, random_state=self.random_seed)
         self.kfold_idx = 1

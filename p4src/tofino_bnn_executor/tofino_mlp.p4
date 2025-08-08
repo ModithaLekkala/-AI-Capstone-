@@ -22,7 +22,7 @@
         actions = { pop_act##y; }\
         key = { nr##y##: exact; }\
         size = 65535;\
-        const default_action = pop_act##y(0xF);
+        const default_action = pop_act##y(0xF);\
     }
 
 #define WRITE_SIGN(frst, snd, thrd, frth,  layer, th)\

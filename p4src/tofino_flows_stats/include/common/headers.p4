@@ -23,6 +23,8 @@ typedef bit<16> ether_type_t;
 typedef bit<16> bnnpk_type_t;
 typedef bit<8>  popcount_t;
 typedef bit<16> bnn_input_t;
+typedef bit<32> timestamp;
+
 
 #define TCP_PACKET hdr.tcp.isValid()
 
@@ -35,6 +37,12 @@ struct current_flow_stats_t {
     bit<16> pkts;
     bit<16> bytes_mean;
     bit<16> bytes;
+    bit<8> ttl;
+    bit<8> tcp_type;
+    timestamp last_rev_pkt;
+    bit<8> synack;
+    bit<8> ackdat;
+    bit<8> tcprtt;
 }
 
 struct metadata_t {
@@ -98,3 +106,13 @@ struct headers_t {
     tcp_h tcp;
     udp_h udp;
 }
+
+typedef bit<8> tcp_flags_t;
+const tcp_flags_t TCP_FLAGS_F = 1;
+const tcp_flags_t TCP_FLAGS_S = 2;
+const tcp_flags_t TCP_FLAGS_R = 4;
+const tcp_flags_t TCP_FLAGS_P = 8;
+const tcp_flags_t TCP_FLAGS_A = 16;
+const tcp_flags_t TCP_FLAGS_U = 32; // URG flag
+const tcp_flags_t TCP_FLAGS_E = 64; // ECE flag
+const tcp_flags_t TCP_FLAGS_C = 128; // CWR flag

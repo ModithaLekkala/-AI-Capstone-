@@ -1,5 +1,4 @@
 from torch.utils.data import Dataset
-import kagglehub
 
 class UNSW_NB15_Dataset(Dataset):
     def __init__(self, X, Y):

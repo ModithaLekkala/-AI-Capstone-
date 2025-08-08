@@ -4,13 +4,15 @@
 #include "include/common/headers.p4"
 #include "include/common/util.p4"
 #include "include/hash_flows.p4"
-#include "include/ttl.p4"
-#include "include/proto.p4"
-#include "include/bytes.p4"
-#include "include/pkt_count.p4"
+#include "include/stats/ttl.p4"
+#include "include/stats/proto.p4"
+#include "include/stats/bytes.p4"
+#include "include/stats/pkt_count.p4"
 #include "include/forward.p4"
 #include "include/parsers.p4"
 #include "include/deparsers.p4"
+#include "include/stats/packet_type.p4"
+#include "include/stats/iat.p4"
 
 control Ingress(
     inout headers_t hdr,
@@ -23,15 +25,29 @@ control Ingress(
     Forward() fw;
     FlowHashing() fh;
     PacketsCounter() pc;
+    TTL() ttl;
+    PacketType() get_tcp_pkt_type;
+    IAT() iat;
 
     apply {
         /* compute index for flow and reversed flow */
-        fh.apply(hdr, meta); 
+        fh.apply(hdr, meta);
 
-        /* keeps track of analyzed pkts per flow */
-        pc.apply(hdr, meta); 
-        
-        /* normal forwarding */
+        /* get current pkt number in the flow */
+        pc.apply(hdr, meta);
+
+        if(TCP_PKT) {
+            /* get tcp pkt type */
+            get_tcp_pkt_type.apply(hdr, meta);
+
+            /* synack, ackdat */
+            iat.apply(hdr, meta, ig_prsr_md);
+        }
+
+        /* sttl, dttl */
+        ttl.apply(hdr, meta);
+
+        /* port forwarding */
         fw.apply(hdr, meta, ig_tm_md,ig_intr_md);
     }
 }
