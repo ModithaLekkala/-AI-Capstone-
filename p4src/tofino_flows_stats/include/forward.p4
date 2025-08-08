@@ -1,8 +1,7 @@
 control Forward(
     inout headers_t hdr,
     inout metadata_t meta,
-    inout ingress_intrinsic_metadata_for_tm_t ig_tm_md,
-    in    ingress_intrinsic_metadata_t ig_intr_md
+    inout ingress_intrinsic_metadata_for_tm_t ig_tm_md
 ) {
     action send_back() {
         /* ether and ipv4 addr swap */

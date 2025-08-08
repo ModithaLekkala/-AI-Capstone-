@@ -5,22 +5,22 @@ control PacketType(inout headers_t hdr, inout metadata_t meta) {
     action nop() {
     }
     action mark_SYN(){  
-        meta.curr_flow.tcp_type=PKT_TYPE_SYN;  
+        meta.tcp_type=PKT_TYPE_SYN;  
     } 
     action mark_SEQ(){  
-        meta.curr_flow.tcp_type=PKT_TYPE_SEQ;  
+        meta.tcp_type=PKT_TYPE_SEQ;  
     } 
     action mark_ACK(){ 
-        meta.curr_flow.tcp_type=PKT_TYPE_ACK; 
+        meta.tcp_type=PKT_TYPE_ACK; 
     } 
     action mark_SYNACK(){   
-        meta.curr_flow.tcp_type=PKT_TYPE_SYNACK; 
+        meta.tcp_type=PKT_TYPE_SYNACK; 
     } 
     action drop_and_exit(){ 
         exit;
     } 
     action mark_FIN_RST() {
-        meta.curr_flow.tcp_type=PKT_TYPE_FIN_RST; 
+        meta.tcp_type=PKT_TYPE_FIN_RST; 
     }
     table tb_decide_packet_type {
         key = {
@@ -79,9 +79,6 @@ control PacketType(inout headers_t hdr, inout metadata_t meta) {
             (TCP_FLAGS_F + TCP_FLAGS_A, _): mark_FIN_RST(); // Fin flag
         }
     }
-
-
-
 
     apply {
         tb_decide_packet_type.apply();

@@ -33,30 +33,11 @@ const ether_type_t ETHERTYPE_IPV4 = 0x0800;
 struct empty_header_t {}
 struct empty_metadata_t {}
 
-struct current_flow_stats_t {
-    bit<16> pkts;
-    bit<16> bytes_mean;
-    bit<16> bytes;
-    bit<8> ttl;
-    bit<8> tcp_type;
-    timestamp last_rev_pkt;
-    bit<8> synack;
-    bit<8> ackdat;
-    bit<8> tcprtt;
-}
-
 struct metadata_t {
     bit<16> flow_index;
     bit<16> reverse_flow_index;
-    current_flow_stats_t curr_flow;
-
-    bit<8> sttl;
-    bit<8> dttl;
+    bit<8> tcp_type;
     bit<8> proto;
-    bit<16> sbytes;
-    bit<16> dbytes;
-    bit<16> spkts;
-    bit<16> dpkts;
 }
 
 header ethernet_h {
@@ -100,11 +81,33 @@ header udp_h{
     bit<16> checksum;
 }
 
+header bnn_input_h {
+    bit<8> sttl;
+    bit<8> dttl;
+    bit<16> sbytes;
+    bit<16> dbytes;
+    bit<16> smean;
+    bit<16> dmean;
+    bit<16> spkts;
+    bit<16> dpkts;
+    bit<8> synack;
+    bit<8> ackdat;
+}
+
+header partial_bnn_h {
+    bit<8> sttl;
+    bit<16> sbytes;
+    bit<16> smean;
+    bit<16> spkts;
+}
+
 struct headers_t {
 	ethernet_h ethernet;
     ipv4_h ipv4;
     tcp_h tcp;
     udp_h udp;
+    bnn_input_h bnn;
+    partial_bnn_h partial_bnn;
 }
 
 typedef bit<8> tcp_flags_t;

@@ -1,14 +1,24 @@
 /***********************  P A R S E R  **************************/
 parser IngressParser(packet_in        pkt,
-    /* User */
     out headers_t          hdr,
     out metadata_t         meta,
-    /* Intrinsic */
     out ingress_intrinsic_metadata_t  ig_intr_md)
 {
     /* This is a mandatory state, required by Tofino Architecture */
     state start {
         pkt.extract(ig_intr_md);
+        transition select(ig_intr_md.resubmit_flag) {
+            1 : parse_resubmit;
+            0 : parse_port_metadata;
+        }
+    }
+
+    state parse_resubmit {
+        pkt.extract(hdr.partial_bnn);
+        transition parse_ethernet;
+    }
+
+    state parse_port_metadata {
         pkt.advance(PORT_METADATA_SIZE);
         transition parse_ethernet;
     }

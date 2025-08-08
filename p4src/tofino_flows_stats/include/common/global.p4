@@ -1,7 +1,9 @@
-#define FLOWS_NO 10
+#define FLOWS_NO 65535
 #define FLOW_MATURE_TIME 8
 
 #define TCP_PKT hdr.tcp.isValid()
+#define RESUB_PKT ig_intr_md.resubmit_flag == 1
+#define NOT_RESUB_PKT ig_intr_md.resubmit_flag == 0
 
 #define PKT_TYPE_SYN 0
 #define PKT_TYPE_SEQ 1

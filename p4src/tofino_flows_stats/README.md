@@ -9,7 +9,6 @@ Flow statistics supported by the features pipeline:
 - dmeansz
 - synack
 - ackdat
-- tcprtt
 
 Work in progress:
 - stime

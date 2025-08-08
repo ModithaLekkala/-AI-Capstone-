@@ -9,13 +9,13 @@ if [ $# -lt 1 ]; then
 fi
 
 # If $2 is empty OR equals "bmv2", pick BMv2/v1model; otherwise use Tofino/TNA
-if [[ -z "$2" || "$2" == "bmv2" ]]; then
-  echo "Target used: BMv2 on v1model."
+if [ "$2" == "bmv2" ]; then
+  echo "Target used: BMv2/v1model."
   compiler="p4c-bmv2"
   target="bmv2"
   arch="v1model"
-elif [ "$2" == "tna" ]; then
-  echo "Target used: TNA on Tofino."
+elif [[ -z "$2" || "$2" == "tna" ]]; then
+  echo "Target used: TNA/Tofino."
   compiler="p4c-tna"
   target="tofino"
   arch="tna"

@@ -2,7 +2,6 @@
 #include <core.p4>
 #include <tna.p4>
 #include "include/common/headers.p4"
-#include "include/common/util.p4"
 #include "include/hash_flows.p4"
 #include "include/stats/ttl.p4"
 #include "include/stats/proto.p4"
@@ -28,13 +27,23 @@ control Ingress(
     TTL() ttl;
     PacketType() get_tcp_pkt_type;
     IAT() iat;
+    Bytes() bytes;
+
+    /* remaining features are already set in resubmit section of all stats modules */
+    action compose_full_imput() {
+        hdr.bnn.sttl = hdr.partial_bnn.sttl;
+        hdr.bnn.sbytes = hdr.partial_bnn.sbytes;
+        hdr.bnn.smean = hdr.partial_bnn.smean;
+        hdr.bnn.spkts = hdr.partial_bnn.spkts;
+    }
 
     apply {
+
         /* compute index for flow and reversed flow */
         fh.apply(hdr, meta);
 
         /* get current pkt number in the flow */
-        pc.apply(hdr, meta);
+        pc.apply(hdr, meta, ig_intr_md);
 
         if(TCP_PKT) {
             /* get tcp pkt type */
@@ -45,10 +54,27 @@ control Ingress(
         }
 
         /* sttl, dttl */
-        ttl.apply(hdr, meta);
+        ttl.apply(hdr, meta,ig_intr_md);
+
+
+        /* sbytes, dbytes */
+        bytes.apply(hdr, meta, ig_intr_md);
+
+
+        /* resubmit to compute other way statistics */
+        if((hdr.partial_bnn.spkts == FLOW_MATURE_TIME) && NOT_RESUB_PKT) {
+            ig_dprsr_md.resubmit_type = 8;
+        }
 
         /* port forwarding */
-        fw.apply(hdr, meta, ig_tm_md,ig_intr_md);
+        if(RESUB_PKT) {
+            hdr.bnn.setValid();
+            compose_full_imput();
+            fw.apply(hdr, meta, ig_tm_md);
+        }
+
+        /* skip egress */
+        ig_tm_md.bypass_egress = 1w1;
     }
 }
 
@@ -60,11 +86,8 @@ control Egress(
         inout egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md,
         inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
     
-    Bytes() bytes;
-    
     apply {
-        /* sbytes, dbytes */
-        bytes.apply(hdr, meta, eg_intr_md);
+        
     }
 }
 
