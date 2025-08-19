@@ -1,6 +1,6 @@
 #include "../common/global.p4"
 
-control TTL(inout headers_t hdr, inout metadata_t meta, in ingress_intrinsic_metadata_t ig_intr_md) {
+control TTL(inout collector_headers_t hdr, inout metadata_t meta, in ingress_intrinsic_metadata_t ig_intr_md) {
     Register<bit<8>,bit<16>>(FLOWS_NO) flows_sttl;
     Register<bit<8>,bit<16>>(FLOWS_NO) flows_dttl;
 

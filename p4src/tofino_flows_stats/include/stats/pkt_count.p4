@@ -1,6 +1,6 @@
 #include "../common/global.p4"
 
-control PacketsCounter(inout headers_t hdr, inout metadata_t meta, in ingress_intrinsic_metadata_t ig_intr_md) {
+control PacketsCounter(inout collector_headers_t hdr, inout metadata_t meta, in ingress_intrinsic_metadata_t ig_intr_md) {
     Register<bit<16>, bit<16>>(FLOWS_NO) flows_spkts;
     Register<bit<16>, bit<16>>(FLOWS_NO) flows_dpkts;
     Register<bit<8>, bit<16>>(FLOWS_NO) flows_pkts;

@@ -1,6 +1,7 @@
 /* -*- P4_16 -*- */
 #include <core.p4>
 #include <tna.p4>
+// #include "../common/headers.p4"
 #include "common/headers.p4"
 #include "common/util.p4"
 
@@ -52,9 +53,9 @@
     nr3 = nr1;\
     nr4 = nr1;
 
-parser IngressParser(
+parser BnnIngressParser(
     packet_in pkt,
-    out headers_t hdr,
+    out bnn_headers_t hdr,
     out empty_metadata_t ig_md,
     out ingress_intrinsic_metadata_t ig_intr_md)
 {
@@ -79,8 +80,8 @@ parser IngressParser(
     }
 }
 
-control Ingress(
-    inout headers_t                                   hdr,
+control BnnIngress(
+    inout bnn_headers_t                                   hdr,
     inout empty_metadata_t                              meta,
     in    ingress_intrinsic_metadata_t                 ig_intr_md,
     in    ingress_intrinsic_metadata_from_parser_t     ig_prsr_md,
@@ -256,9 +257,9 @@ control Ingress(
     }
 }
 
-control IngressDeparser(
+control BnnIngressDeparser(
     packet_out      pkt,
-    inout headers_t hdr,
+    inout bnn_headers_t hdr,
     in   empty_metadata_t meta,
     in   ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md)
 {
@@ -271,11 +272,11 @@ control IngressDeparser(
 
 
 Pipeline(
-    IngressParser(),
-    Ingress(),
-    IngressDeparser(),
+    BnnIngressParser(),
+    BnnIngress(),
+    BnnIngressDeparser(),
     EmptyEgressParser(),
     EmptyEgress(),
     EmptyEgressDeparser()
-) inethynn;
-Switch(inethynn) main;
+) bnn_executor;
+// Switch(bnn_executor) main;

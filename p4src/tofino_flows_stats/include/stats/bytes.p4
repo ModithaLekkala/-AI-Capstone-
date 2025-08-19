@@ -8,7 +8,7 @@
 /* 2. resubmit */
 /* 1. dst->stc statistics */
 
-control Bytes(inout headers_t hdr, inout metadata_t meta) {
+control Bytes(inout collector_headers_t hdr, inout metadata_t meta) {
     Register<bit<16>, bit<16>>(FLOWS_NO) flows_sbytes;
     Register<bit<16>, bit<16>>(FLOWS_NO) flows_dbytes;
 

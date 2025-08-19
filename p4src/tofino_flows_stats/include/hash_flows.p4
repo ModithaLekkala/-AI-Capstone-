@@ -5,7 +5,7 @@ struct paired_addr {
     ipv4_addr_t dst;
 }
 
-control FlowHashing(inout headers_t hdr, inout metadata_t meta) {
+control FlowHashing(inout collector_headers_t hdr, inout metadata_t meta) {
     @symmetric("hdr.ipv4.src_addr", "hdr.ipv4.dst_addr")
     @symmetric("hdr.tcp.src_port", "hdr.tcp.dst_port")
     Hash<bit<16>>(HashAlgorithm_t.CRC16) hash_tcp;

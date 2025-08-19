@@ -1,6 +1,7 @@
 /* -*- P4_16 -*- */
 #include <core.p4>
 #include <tna.p4>
+// #include "../common/headers.p4"
 #include "include/common/headers.p4"
 #include "include/hash_flows.p4"
 #include "include/stats/ttl.p4"
@@ -12,8 +13,8 @@
 #include "include/stats/packet_type.p4"
 #include "include/stats/iat.p4"
 
-control Ingress(
-    inout headers_t hdr,
+control CollectorIngress(
+    inout collector_headers_t hdr,
     inout metadata_t meta,
     in    ingress_intrinsic_metadata_t ig_intr_md,
     in    ingress_intrinsic_metadata_from_parser_t ig_prsr_md,
@@ -74,8 +75,8 @@ control Ingress(
     }
 }
 
-control Egress(
-        inout headers_t hdr,
+control CollectorEgress(
+        inout collector_headers_t hdr,
         inout metadata_t meta,
         in egress_intrinsic_metadata_t eg_intr_md,
         in egress_intrinsic_metadata_from_parser_t eg_intr_md_from_prsr,
@@ -107,14 +108,12 @@ control Egress(
     }
 }
 
-
-
 Pipeline(
-    IngressParser(),
-    Ingress(),
-    IngressDeparser(),
-    EgressParser(),
-    Egress(),
-    EgressDeparser()
-) inethynn;
-Switch(inethynn) main;
+    CollectorIngressParser(),
+    CollectorIngress(),
+    CollectorIngressDeparser(),
+    CollectorEgressParser(),
+    CollectorEgress(),
+    CollectorEgressDeparser()
+) features_collector;
+// Switch(features_collector) main;

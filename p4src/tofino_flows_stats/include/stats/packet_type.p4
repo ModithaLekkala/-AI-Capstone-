@@ -1,6 +1,6 @@
 #include "../common/global.p4"
 
-control PacketType(inout headers_t hdr, inout metadata_t meta) {
+control PacketType(inout collector_headers_t hdr, inout metadata_t meta) {
    
     action nop() {
     }

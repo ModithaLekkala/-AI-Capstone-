@@ -1,6 +1,6 @@
 #include "../common/global.p4"
 
-control Proto(inout headers_t hdr, inout metadata_t meta) {
+control Proto(inout collector_headers_t hdr, inout metadata_t meta) {
     // Register to store protocol per flow
     Register<bit<8>, _>(FLOWS_NO) flows_proto;
     RegisterAction<bit<8> , _, bit<8>>(flows_proto) get_flow_proto = {

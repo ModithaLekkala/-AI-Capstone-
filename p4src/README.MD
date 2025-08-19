@@ -16,6 +16,9 @@ To compile a p4 program use `bash compile_p4.sh <p4program.p4> tna`.
 To run and test the feature extractor program for Tofino follow the same instructions for bnn_executor skipping the second point. It doesn't need any control plane configuration (not yet).
 The main p4 program is: `feature_extractor.p4`
 
+## Launch both feature_collector and bnn_executor via multi-pipeline p4 program. 
+Run `sudo tofino_topo.py p4src/main.p4`
+
 ## Dependencies (work in progress)
 - p4-utils
 - open-p4studio

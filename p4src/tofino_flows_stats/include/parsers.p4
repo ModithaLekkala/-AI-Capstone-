@@ -1,6 +1,6 @@
 /***********************  P A R S E R  **************************/
-parser IngressParser(packet_in        pkt,
-    out headers_t          hdr,
+parser CollectorIngressParser(packet_in        pkt,
+    out collector_headers_t          hdr,
     out metadata_t         meta,
     out ingress_intrinsic_metadata_t  ig_intr_md)
 {
@@ -53,9 +53,9 @@ parser IngressParser(packet_in        pkt,
 
 
 /*********************** D E P A R S E R  **************************/
-parser EgressParser(
+parser CollectorEgressParser(
     packet_in pkt,
-    out headers_t hdr,
+    out collector_headers_t hdr,
     out metadata_t eg_md,
     out egress_intrinsic_metadata_t eg_intr_md) {
     

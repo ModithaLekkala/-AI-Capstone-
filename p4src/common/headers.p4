@@ -21,30 +21,13 @@ typedef bit<48> mac_addr_t;
 typedef bit<32> ipv4_addr_t;
 typedef bit<16> ether_type_t;
 typedef bit<16> bnnpk_type_t;
-typedef bit<8>  popcount_t;
-typedef bit<16> bnn_input_t;
-
 
 const ether_type_t ETHERTYPE_IPV4 = 0x0800;
 const bnnpk_type_t BNN_PKT_ETYPE = 0x2323;
-const PortId_t POP_RECIRC_PORT = 68;
-const PortId_t LAYER_RECIRC_PORT = 71;
-
-const bit<48> MAC_SND       = 0x00000000000a;
-
-
-const bit<8> m1_8 = 0x55;
-const bit<8> m2_8 = 0x33;
-const bit<8> m4_8 = 0x0f;
-
-const bit<32> m1_32 = 0x55555555;
-const bit<32> m2_32 = 0x33333333;
-const bit<32> m4_32 = 0x0f0f0f0f;
-const bit<32> m8_32 = 0x00ff00ff;
-const bit<32> m16_32 = 0x0000ffff;
 
 struct empty_header_t {}
 struct empty_metadata_t {}
+
 
 header ethernet_h {
     mac_addr_t dst_addr;
@@ -67,22 +50,22 @@ header ipv4_h {
     ipv4_addr_t dst_addr;
 }
 
-header bnn_pkt {
-    bit<8> layer_no;
-    bit<32> l0_out;
-    bit<8> l1_out;
-    bit<8> l2_out;
-
-    bit<8> pop_recirc;
-    bit<8> nrs_recirc;
-    
-    popcount_t pop1;
-    popcount_t pop2;
-    popcount_t pop3;
-    popcount_t pop4;
+header tcp_h{
+    bit<16> src_port;
+    bit<16> dst_port;
+    bit<32> seq_no;
+    bit<32> ack_no;
+    bit<4> data_offset;
+    bit<4> res;
+    bit<8> flags;
+    bit<16> window;
+    bit<16> checksum;
+    bit<16> urgent_ptr;
 }
 
-struct headers_t {
-	ethernet_h ethernet;
-    bnn_pkt bnn_pkt;
+header udp_h{
+    bit<16> src_port;
+    bit<16> dst_port;
+    bit<16> len;
+    bit<16> checksum;
 }

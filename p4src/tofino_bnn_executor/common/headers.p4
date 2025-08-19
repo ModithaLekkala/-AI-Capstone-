@@ -17,16 +17,9 @@
  *  SPDX-License-Identifier: Apache-2.0
  ******************************************************************************/
 
-typedef bit<48> mac_addr_t;
-typedef bit<32> ipv4_addr_t;
-typedef bit<16> ether_type_t;
-typedef bit<16> bnnpk_type_t;
 typedef bit<8>  popcount_t;
 typedef bit<16> bnn_input_t;
 
-
-const ether_type_t ETHERTYPE_IPV4 = 0x0800;
-const bnnpk_type_t BNN_PKT_ETYPE = 0x2323;
 const PortId_t POP_RECIRC_PORT = 68;
 const PortId_t LAYER_RECIRC_PORT = 71;
 
@@ -43,30 +36,6 @@ const bit<32> m4_32 = 0x0f0f0f0f;
 const bit<32> m8_32 = 0x00ff00ff;
 const bit<32> m16_32 = 0x0000ffff;
 
-struct empty_header_t {}
-struct empty_metadata_t {}
-
-header ethernet_h {
-    mac_addr_t dst_addr;
-    mac_addr_t src_addr;
-    bit<16> ether_type;
-}
-
-header ipv4_h {
-    bit<4> version;
-    bit<4> ihl;
-    bit<8> diffserv;
-    bit<16> total_len;
-    bit<16> identification;
-    bit<3> flags;
-    bit<13> frag_offset;
-    bit<8> ttl;
-    bit<8> protocol;
-    bit<16> hdr_checksum;
-    ipv4_addr_t src_addr;
-    ipv4_addr_t dst_addr;
-}
-
 header bnn_pkt {
     bit<8> layer_no;
     bit<32> l0_out;
@@ -82,7 +51,7 @@ header bnn_pkt {
     popcount_t pop4;
 }
 
-struct headers_t {
+struct bnn_headers_t {
 	ethernet_h ethernet;
     bnn_pkt bnn_pkt;
 }

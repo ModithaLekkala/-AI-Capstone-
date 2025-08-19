@@ -5,7 +5,7 @@ struct paired_iat {
     bit<32> done;
 }
 
-control IAT(inout headers_t hdr, 
+control IAT(inout collector_headers_t hdr, 
             inout metadata_t meta, 
             in ingress_intrinsic_metadata_from_parser_t ig_prsr_md) {
     
