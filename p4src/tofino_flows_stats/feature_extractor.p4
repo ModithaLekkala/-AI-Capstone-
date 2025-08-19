@@ -4,7 +4,6 @@
 #include "include/common/headers.p4"
 #include "include/hash_flows.p4"
 #include "include/stats/ttl.p4"
-#include "include/stats/proto.p4"
 #include "include/stats/bytes.p4"
 #include "include/stats/pkt_count.p4"
 #include "include/forward.p4"
@@ -29,52 +28,49 @@ control Ingress(
     IAT() iat;
     Bytes() bytes;
 
-    /* remaining features are already set in resubmit section of all stats modules */
-    action compose_full_imput() {
-        hdr.bnn.sttl = hdr.partial_bnn.sttl;
-        hdr.bnn.sbytes = hdr.partial_bnn.sbytes;
-        hdr.bnn.smean = hdr.partial_bnn.smean;
-        hdr.bnn.spkts = hdr.partial_bnn.spkts;
+    action set_normal_pkt() {
+        hdr.bridged_md.setValid();
+        hdr.bridged_md.pkt_type = PKT_TYPE_NORMAL;
     }
 
     apply {
+        // if(MIRRORED) {
+        //     SEND_TO(1)
+        // } else {
+            /* compute flow index */
+            fh.apply(hdr, meta);
 
-        /* compute index for flow and reversed flow */
-        fh.apply(hdr, meta);
+            /* spkts, dpkts */
+            pc.apply(hdr, meta, ig_intr_md);
 
-        /* get current pkt number in the flow */
-        pc.apply(hdr, meta, ig_intr_md);
+            if(TCP_PKT) {
+                /* get tcp pkt type */
+                get_tcp_pkt_type.apply(hdr, meta);
 
-        if(TCP_PKT) {
-            /* get tcp pkt type */
-            get_tcp_pkt_type.apply(hdr, meta);
+                /* synack, ackdat */
+                iat.apply(hdr, meta, ig_prsr_md);
+            }
 
-            /* synack, ackdat */
-            iat.apply(hdr, meta, ig_prsr_md);
-        }
+            /* sttl, dttl */
+            ttl.apply(hdr, meta,ig_intr_md);
 
-        /* sttl, dttl */
-        ttl.apply(hdr, meta,ig_intr_md);
-
-
-        /* sbytes, dbytes */
-        bytes.apply(hdr, meta, ig_intr_md);
-
-
-        /* resubmit to compute other way statistics */
-        if((hdr.partial_bnn.spkts == FLOW_MATURE_TIME) && NOT_RESUB_PKT) {
-            ig_dprsr_md.resubmit_type = 8;
-        }
-
-        /* port forwarding */
-        if(RESUB_PKT) {
-            hdr.bnn.setValid();
-            compose_full_imput();
+            /* port forwarding */
             fw.apply(hdr, meta, ig_tm_md);
-        }
 
-        /* skip egress */
-        ig_tm_md.bypass_egress = 1w1;
+            /* sbytes, dbytes, smean, dmean */
+            bytes.apply(hdr, meta);
+
+            /* set bnn output if flow is mature */
+            if(meta.flow_pkts == BIDIRECTIONAL_FLOW_MATURE_TIME) {
+                hdr.bnn.setValid();
+            
+                /* mirror logic */
+                set_normal_pkt();
+                ig_tm_md.ucast_egress_port=1;
+                hdr.bridged_md.do_egr_mirroring = 1;
+                hdr.bridged_md.egr_mir_ses = 1;
+            }   
+        // }
     }
 }
 
@@ -83,11 +79,31 @@ control Egress(
         inout metadata_t meta,
         in egress_intrinsic_metadata_t eg_intr_md,
         in egress_intrinsic_metadata_from_parser_t eg_intr_md_from_prsr,
-        inout egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md,
+        inout egress_intrinsic_metadata_for_deparser_t eg_dprsr_md,
         inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
     
+    action set_mirror() {
+        meta.egr_mir_ses = hdr.bridged_md.egr_mir_ses;
+        meta.pkt_type = PKT_TYPE_MIRROR;
+        eg_dprsr_md.mirror_type = MIRROR_TYPE_E2E;
+    }
+
+    action set_bnn_hdr() {
+        hdr.bnn.setValid();
+        hdr.ipv4.setInvalid();
+        hdr.tcp.setInvalid();
+        hdr.udp.setInvalid();
+        hdr.mirrored_md.setInvalid();
+        hdr.ethernet.setValid();
+        hdr.ethernet.ether_type = BNN_PKT_ETYPE;
+    }
+
     apply {
-        
+        if(hdr.bridged_md.do_egr_mirroring == 1) {
+            set_mirror();
+        } else if(hdr.mirrored_md.isValid()) {
+            set_bnn_hdr();
+        }
     }
 }
 

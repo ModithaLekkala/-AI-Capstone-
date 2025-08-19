@@ -51,26 +51,22 @@ control IAT(inout headers_t hdr,
             }
         }
     };
-
-    bit<8> tmp_synack = 0;
-    bit<8> tmp_ackdat = 0;
     
     apply {
-        update_iat_1.execute(meta.flow_index);
-        update_iat_2.execute(meta.flow_index);
+        if(meta.tcp_type==PKT_TYPE_SYN) {
+            update_iat_1.execute(meta.flow_index);
+        }
 
         if(meta.tcp_type==PKT_TYPE_SYNACK) {
-            tmp_synack = (bit<8>)get_synack.execute(meta.reverse_flow_index);
+            hdr.bnn.synack = (bit<8>)get_synack.execute(meta.reverse_flow_index);
+            update_iat_2.execute(meta.flow_index);
         } 
         
         if(meta.tcp_type==PKT_TYPE_ACK) {
-            tmp_ackdat = (bit<8>)get_ackdat.execute(meta.reverse_flow_index);
+            hdr.bnn.ackdat = (bit<8>)get_ackdat.execute(meta.reverse_flow_index);
         }
 
-        // /* compose input  */
-        if(hdr.bnn.spkts == FLOW_MATURE_TIME) {
-            hdr.bnn.ackdat = (bit<8>)get_ackdat.execute(meta.reverse_flow_index);
-            hdr.bnn.synack = (bit<8>)get_synack.execute(meta.reverse_flow_index);
-        }
+        hdr.bnn.ackdat = (bit<8>)get_ackdat.execute(meta.reverse_flow_index);
+        hdr.bnn.synack = (bit<8>)get_synack.execute(meta.reverse_flow_index);
     }
 }

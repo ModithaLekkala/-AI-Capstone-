@@ -8,63 +8,76 @@
 /* 2. resubmit */
 /* 1. dst->stc statistics */
 
-control Bytes(inout headers_t hdr, inout metadata_t meta, in ingress_intrinsic_metadata_t ig_intr_md) {
-    Register<bit<16>, bit<16>>(FLOWS_NO) flows_bytes;
-    Register<bit<16>, bit<16>>(FLOWS_NO) flows_eth_bytes;
+control Bytes(inout headers_t hdr, inout metadata_t meta) {
+    Register<bit<16>, bit<16>>(FLOWS_NO) flows_sbytes;
+    Register<bit<16>, bit<16>>(FLOWS_NO) flows_dbytes;
 
-
-    RegisterAction<bit<16>, bit<16>, bit<16>>(flows_bytes) update_flows_bytes = {
+    RegisterAction<_, bit<16>, bit<16>>(flows_sbytes) update_flows_sbytes = {
         void apply(inout bit<16> flow_bytes, out bit<16> rv) {
-            // flow_bytes = flow_bytes + eg_intr_md.pkt_length;
-            flow_bytes = flow_bytes + hdr.ipv4.total_len;
+            flow_bytes = flow_bytes + meta.frame_len;
             rv = flow_bytes;
         }
     };
-    RegisterAction<bit<16>, bit<16>, bit<16>>(flows_bytes) get_flows_bytes = {
+    RegisterAction<_, bit<16>, bit<16>>(flows_sbytes) get_flows_sbytes = {
         void apply(inout bit<16> flow_bytes, out bit<16> rv) {
             rv = flow_bytes;
         }
     };
 
-
-    /* 14B Ethernet header + 4 Ethernet CRC */
-    RegisterAction<bit<16>, bit<16>, bit<16>>(flows_eth_bytes) update_flows_eth_bytes = {
+    RegisterAction<_, bit<16>, bit<16>>(flows_dbytes) update_flows_dbytes = {
         void apply(inout bit<16> flow_bytes, out bit<16> rv) {
-            flow_bytes = flow_bytes + 18;
+            flow_bytes = flow_bytes + meta.frame_len;
             rv = flow_bytes;
         }
     };
-    RegisterAction<bit<16>, bit<16>, bit<16>>(flows_eth_bytes) get_flows_eth_bytes = {
+    RegisterAction<_, bit<16>, bit<16>>(flows_dbytes) get_flows_dbytes = {
         void apply(inout bit<16> flow_bytes, out bit<16> rv) {
             rv = flow_bytes;
+            
         }
     };
 
-    bit<16> tmp_bytes = 0;
-    bit<16> tmp_bytes_eth = 0;
-
-    action compute_smean() {
-        hdr.partial_bnn.smean = hdr.partial_bnn.sbytes >> 3;
+    action update_sbytes() {
+        hdr.bnn.sbytes=update_flows_sbytes.execute(meta.flow_index);
     }
 
-    action compute_dmean() {
+    action update_dbytes() {
+        hdr.bnn.dbytes=update_flows_dbytes.execute(meta.flow_index);
+    }
+
+    action get_sbytes() {
+        hdr.bnn.sbytes = get_flows_sbytes.execute(meta.flow_index);
+    }
+
+    action get_dbytes() {
+        hdr.bnn.dbytes = get_flows_dbytes.execute(meta.flow_index);
+    }
+
+    /* assumption: both flow directions are balanced */
+    action compute_means() {
+        hdr.bnn.smean = hdr.bnn.sbytes >> 3;
         hdr.bnn.dmean = hdr.bnn.dbytes >> 3;
     }
     
-
     apply {
-        if(NOT_RESUB_PKT) {
-            tmp_bytes = update_flows_bytes.execute(meta.flow_index);
-            tmp_bytes_eth = update_flows_eth_bytes.execute(meta.flow_index);
-            if(hdr.partial_bnn.spkts == FLOW_MATURE_TIME) {
-                hdr.partial_bnn.sbytes = tmp_bytes+tmp_bytes_eth;
-                compute_smean();
+        /* 14B Ethernet header + 4 Ethernet CRC */
+        meta.frame_len = hdr.ipv4.total_len + 18;
+
+        if(FORWARD_DIR_PKT) {
+            if(meta.flow_pkts <= BIDIRECTIONAL_FLOW_MATURE_TIME) {
+                update_sbytes();
+            } else {
+                get_sbytes();
             }
+            get_dbytes();
         } else {
-            tmp_bytes = get_flows_bytes.execute(meta.reverse_flow_index);
-            tmp_bytes_eth = get_flows_eth_bytes.execute(meta.reverse_flow_index);
-            hdr.bnn.dbytes = tmp_bytes+tmp_bytes_eth;
-            compute_dmean();
+            if(meta.flow_pkts <= BIDIRECTIONAL_FLOW_MATURE_TIME) {
+                update_dbytes();
+            } else {
+                get_dbytes();
+            }
+            get_sbytes();
         }
+        compute_means();
     }  
 }
