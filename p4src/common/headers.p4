@@ -24,6 +24,7 @@ typedef bit<16> bnnpk_type_t;
 
 const ether_type_t ETHERTYPE_IPV4 = 0x0800;
 const bnnpk_type_t BNN_PKT_ETYPE = 0x2323;
+const bnnpk_type_t FEATURE_COLLECTOR_PKT_ETYPE = 0x2324;
 
 struct empty_header_t {}
 struct empty_metadata_t {}

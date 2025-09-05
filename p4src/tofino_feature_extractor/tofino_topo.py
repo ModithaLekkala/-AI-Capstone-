@@ -22,12 +22,14 @@ net.setCompiler(compilerClass=BF_P4C, sde=SDE, sde_install=SDE_INSTALL, p4c=P4C)
 # Network definition
 net.addTofino('s1', sde=SDE, sde_install=SDE_INSTALL)
 net.setP4SourceAll(P4_PROGRAM)
+net.enableCpuPort('s1')
+net.setIntfPort('s1', 'sw-cpu', 64)
+net.setIntfPort('s1', 'bnn-eth1', 128)
 
 net.addHost('h1')
-# net.addHost('h2')
 
 net.addLink('h1', 's1', port1=1)
-# net.addLink('s1', 'h2', port1=2)
+
 
 # Assignment strategy
 net.l2()

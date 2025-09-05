@@ -164,7 +164,7 @@ control BnnIngress(
         bit<48> tmp = hdr.ethernet.dst_addr;
         hdr.ethernet.dst_addr = hdr.ethernet.src_addr;
         hdr.ethernet.src_addr = tmp;
-        ig_tm_md.ucast_egress_port = (bit<9>)1;
+        ig_tm_md.ucast_egress_port = (bit<9>)CPU_PORT;
     }
 
     table egress_behaviour {

@@ -4,20 +4,22 @@
 - tofino8nrs: it contains an old version of the bnn_executor computing 8 parallel neurons results. It has a limited amount of layer though.
 
 ## Compile
-To compile a p4 program use `bash compile_p4.sh <p4program.p4> tna`.
-
+To compile a p4 program for tna/Tofino use `bash compile_p4.sh <p4program.p4> tna`.
 
 ## Test the bnn_executor for Tofino ASIC
+The main p4 program is: `tofino_mlp.p4`
 1) Run `sudo tofino_topo.py <p4program.p4>` to launch the Tofino topology.
 2) To run the control plane program use `mx s1` on external terminal and then `$SDE/run_bfshell.sh -b ``pwd``/p4src/tofino_controller.py` where `$SDE` is the open-p4studio installation path
 3) To run the test code from a client use `mx h1` on ext term and then `python tofino_mlp_test.py`.
 
 ## Test the feature_extractor
-To run and test the feature extractor program for Tofino follow the same instructions for bnn_executor skipping the second point. It doesn't need any control plane configuration (not yet).
+To run and test the feature extractor program for Tofino follow the same instructions for bnn_executor: control plane program `controller.py`, test program `client.py`.
 The main p4 program is: `feature_extractor.p4`
 
 ## Launch both feature_collector and bnn_executor via multi-pipeline p4 program. 
-Run `sudo tofino_topo.py p4src/main.p4`
+1) Comment `#include "../common/headers.p4"` in both feature_extractor.p4 and tofino_mlp.p4.
+2) Comment Switch() declaration on feature_extractor.p4 (line 119) and tofino_mlp.p4 (line 282).
+3) Run `sudo tofino_topo.py p4src/main.p4`
 
 ## Dependencies (work in progress)
 - p4-utils

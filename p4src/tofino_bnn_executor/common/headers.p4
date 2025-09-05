@@ -20,8 +20,9 @@
 typedef bit<8>  popcount_t;
 typedef bit<16> bnn_input_t;
 
-const PortId_t POP_RECIRC_PORT = 68;
-const PortId_t LAYER_RECIRC_PORT = 71;
+const PortId_t POP_RECIRC_PORT = 192;
+const PortId_t LAYER_RECIRC_PORT = 193;
+const PortId_t CPU_PORT = 65;
 
 const bit<48> MAC_SND       = 0x00000000000a;
 

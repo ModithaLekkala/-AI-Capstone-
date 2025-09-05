@@ -67,7 +67,7 @@ control CollectorIngress(
             
                 /* mirror logic */
                 set_normal_pkt();
-                ig_tm_md.ucast_egress_port=1;
+                ig_tm_md.ucast_egress_port=2;
                 hdr.bridged_md.do_egr_mirroring = 1;
                 hdr.bridged_md.egr_mir_ses = 1;
             }   
@@ -96,7 +96,7 @@ control CollectorEgress(
         hdr.udp.setInvalid();
         hdr.mirrored_md.setInvalid();
         hdr.ethernet.setValid();
-        hdr.ethernet.ether_type = BNN_PKT_ETYPE;
+        hdr.ethernet.ether_type = FEATURE_COLLECTOR_PKT_ETYPE;
     }
 
     apply {
