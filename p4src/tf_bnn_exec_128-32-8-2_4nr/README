@@ -1,0 +1,5 @@
+## Test the bnn_executor for Tofino ASIC
+The main p4 program is: `tofino_mlp.p4`
+1) Run `sudo tofino_topo.py <p4program.p4>` to launch the Tofino topology.
+2) To run the control plane program use `mx s1` on external terminal and then `$SDE/run_bfshell.sh -b ``pwd``/p4src/tofino_controller.py` where `$SDE` is the open-p4studio installation path
+3) To run the test code from a client use `mx h1` on ext term and then `python tofino_mlp_test.py`.

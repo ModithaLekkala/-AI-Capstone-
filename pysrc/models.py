@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-DROPOUT = 0.2
+DROPOUT = 0.3
 
 # control plane dnn
 class DeeperNN(nn.Module):
@@ -50,9 +50,9 @@ class SmallerNN(nn.Module):
                     bias=False,
                     weight_quant=CommonBinWeightQuant))
             in_features = out_features
-            self.features.append(nn.BatchNorm1d(num_features=in_features, momentum=0.9))
+            # self.features.append(nn.BatchNorm1d(num_features=in_features, momentum=0.9))
             self.features.append(qnn.QuantIdentity(act_quant=CommonBinActQuant))
-            # self.features.append(nn.Dropout(p=DROPOUT))
+            self.features.append(nn.Dropout(p=DROPOUT))
 
 
         self.features.append(

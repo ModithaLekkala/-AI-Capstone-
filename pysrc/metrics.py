@@ -130,7 +130,7 @@ class MetricsManager():
 
     def saveEvalResults(self, model_name):
         eval_cases = sorted(
-            [c for c in self.cases if c.startswith('evalu')],
+            [c for c in self.cases if c.startswith('evalu') and c != 'evalu'],
             key=lambda c: int(c[len('evalu'):])
         )
 
@@ -216,11 +216,14 @@ class MetricsManager():
 
     def displayConfMatrixPlot(self, case, model_name, dataset_name):
         n_matrices = len(self.cases[case]['cms'])
-        rows = 2
-        cols = 5
         file_ct = 1
+        if('evalu' in case):
+            rows = 2; cols = 3; xsize = 10; ysize = 8
+        else:
+            rows = 4; cols = 5; xsize = 12; ysize = 9
+
         while(n_matrices > 0):
-            fig, axes = plt.subplots(rows, cols, figsize=(12, 6))
+            fig, axes = plt.subplots(rows, cols, figsize=(xsize, ysize))
             
             for ax, cm, title in zip(axes.flatten(), self.cases[case]['cms'], self.cases[case]['cms_names']):
                 disp = ConfusionMatrixDisplay(confusion_matrix=cm)
@@ -229,10 +232,11 @@ class MetricsManager():
 
             plt.tight_layout()
             plt.savefig(f'pysrc/metric_plots/confusions/{case}{file_ct}__{model_name}__{dataset_name}_{datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")[:-3]}.png')
+            plt.close(fig=fig)
             file_ct += 1
-            n_matrices -= 10 # each png file contains 10 epoch conf matrices
-            self.cases[case]['cms'] = self.cases[case]['cms'][10:]
-            self.cases[case]['cms_names'] = self.cases[case]['cms_names'][10:]
+            n_matrices -= rows*cols # each png file contains 10 epoch conf matrices
+            self.cases[case]['cms'] = self.cases[case]['cms'][rows*cols:]
+            self.cases[case]['cms_names'] = self.cases[case]['cms_names'][rows*cols:]
 
         # self.cases[case] = None
 

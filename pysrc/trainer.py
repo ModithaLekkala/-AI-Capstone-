@@ -1,9 +1,10 @@
 import os
 import ast
 import pandas as pd
+import json
 
-from utils import get_model_cfg, data_preprocess, data_binarization, get_distillation_cfg, metrics_binary_dataset
-from datasets import UNSW_NB15_Dataset
+from utils import get_cfg, data_preprocess, data_binarization, metrics_binary_dataset
+from datasets import CommonDataset
 from torch.utils.data import DataLoader
 
 import torch
@@ -41,11 +42,20 @@ class Trainer():
         gen = torch.manual_seed(self.random_seed)
 
         # init
-        self.cfg = get_model_cfg()
+        self.cfg = get_cfg(self.args.model)
+        self.dataset_cfg = get_cfg(self.args.dataset_name)
         self.num_classes = self.cfg.getint('MODEL', 'NUM_CLASSES')
-        self.dataset = self.cfg.get('MODEL', 'DATASET')
-        self.selected_feats = json.loads(self.cfg.get('MODEL', 'SELECTED_FEATURES'))
+        self.nn_input_size = self.cfg.getint('MODEL', 'INPUT_LAYER')
+
+        self.dataset = self.dataset_cfg.get('DATASET', 'NAME')
+        self.dataset_path = self.dataset_cfg.get('DATASET', 'PATH')
+        self.dataset_test_path = self.dataset_cfg.get('DATASET', 'TEST_PATH', fallback='')
+        self.dataset_dir = os.path.dirname(self.dataset_path)
         self.dataset_name = 'balanced' if self.args.balance_dataset else 'vanilla'
+
+        self.selected_feats = json.loads(self.dataset_cfg.get('DATASET', 'SELECTED_FEATURES'))
+        self.last_selected_feats_file = f'{DATASET_PATH}/{self.dataset}/last_selected_features.json'
+
         self.kfolder = StratifiedShuffleSplit(n_splits=self.args.folds, test_size=0.1, random_state=self.random_seed)
         self.kfold_idx = 1
         self.best_acc = -np.inf
@@ -53,16 +63,39 @@ class Trainer():
         
         if self.args.distilled:
             self.model_name = 'distilled'
-        elif self.args.quantized:
+        elif self.args.model == 'mbnn' or self.args.model == 'tbnn':
             self.model_name = 'bnn' 
         else:
             self.model_name = 'full'
+
+        bin_ds = f'{self.dataset_dir}/bin_{self.dataset}_{self.nn_input_size}b'
+
+        if os.path.isfile(self.last_selected_feats_file):
+            with open(self.last_selected_feats_file, 'r') as f:
+                self.last_selected_feats = json.load(f)
+            
+            if self.last_selected_feats != self.selected_feats:
+                print('Last selected features are different the current ones, removing last binarized dataset if exists...', end='')
+                if os.path.isfile(bin_ds):
+                    os.remove(bin_ds)
+                    print('deleted.')
+            else:
+                print('Last and current selected features match. Continue with dataset loading.')
+        else:
+            print(f'Saving current selected features to {self.last_selected_feats_file}...', end='')
+            with open(self.last_selected_feats_file, 'w') as f:
+                json.dump(self.selected_feats, f)
+            print('saved.')
         
         # preprocess dataset and dataloader
-        if self.dataset == 'UNSW_NB15':
-            self.builder = UNSW_NB15_Dataset
-            data_tr = pd.read_csv(TRAIN_DATASET_PATH, delimiter=',')
-            data_te = pd.read_csv(EVALU_DATASET_PATH, delimiter=',')
+        if not os.path.isfile(bin_ds):
+            self.builder = CommonDataset
+            data = pd.read_csv(self.dataset_path, delimiter=',')
+            
+            if self.dataset_test_path != '':
+                data_te = pd.read_csv(self.dataset_test_path, delimiter=',')
+                data = pd.concat([data, data_te], axis=0, ignore_index=True)
+            
             dict = {
                 'categorical_features_values': 6,
                 'continuous_features_values': 50,
@@ -72,62 +105,50 @@ class Trainer():
                 ]
             }
 
-            # split feats and labels from eval set
-            x_tmp = data_te[data_te.columns[-1]]
-            y_tmp = data_te[data_te.columns[:-1]]
-
-            # generate test set from evaluation dataset and attach the remaining part to the training dataset  
-            x_tmp_tr, x_tmp_te, y_tmp_tr, y_tmp_te = train_test_split(x_tmp, y_tmp, test_size=0.3, random_state=self.random_seed)
-
-            # merge features and labels again
-            tmp     = pd.concat([y_tmp_tr, x_tmp_tr], axis=1)
-            data_te = pd.concat([y_tmp_te, x_tmp_te], axis=1)
-            
-            # attach remaining to training
-            data_tr = pd.concat([data_tr, tmp], ignore_index=True)
-
             # feature selection
-            data_tr = data_tr[self.selected_feats]
-            data_te = data_te[self.selected_feats]
+            data = data[self.selected_feats]
+            Y=data[data.columns[-1]]
 
             print('\nDATASETS PREPROCESSING')
-            X_tr_df, self.Y_tr, _ = data_preprocess(data_tr, dict, binarization=self.args.quantized)
-            X_te_df, Y_te, _ = data_preprocess(data_te, dict, binarization=self.args.quantized)
+            x_tmp,  _ = data_preprocess(data[data.columns[:-1]], dict)
+            Xbin, _ = data_binarization(x_tmp.astype('int'), input_size=self.nn_input_size)
+        
+            print('Binarized dataset doesn\'t exists, saving it for future references... ', end='')
+            pd.concat([pd.DataFrame(Xbin), Y], axis=1).to_csv(bin_ds, index=False)
+            print('saved.')
+        else:
+            print('Binarized dataset exists, load it...', end='')
+            data = pd.read_csv(bin_ds)
+            Xbin=data[data.columns[:-1]]
+            Y=data[data.columns[-1]]
+            # print(f'Head(1):\n{Xbin.head(1)}')
+            # Xbin = Xbin.to_numpy()
+            print(f'loaded.\nNew {self.dataset} shape: {Xbin.shape}', end='')
 
-
-            # keep track of indeces to split again after
-            train_idx = X_tr_df.shape[0]
-            # merge tr and te to binarized together
-            X_tmp = pd.concat([X_tr_df, X_te_df], ignore_index=True)
-
-        Xbin, _ = data_binarization(X_tmp.astype('int'))
-
-        # split again
-        Xbin_tr = Xbin[:train_idx]
-        Xbin_te = Xbin[train_idx:]
+        Xbin_tr, Xbin_te, Y_tr, Y_te = train_test_split(Xbin, Y, test_size=0.3, random_state=self.random_seed, shuffle=True)
+        self.Y_tr = Y_tr.values
+        self.Y_te = Y_te.values
 
         # dataset prep termined
-        self.X_tr = torch.tensor(Xbin_tr, dtype=torch.float32)
-        self.X_te = torch.tensor(Xbin_te, dtype=torch.float32)
+        self.X_tr = torch.tensor(Xbin_tr.values, dtype=torch.float32)
+        self.X_te = torch.tensor(Xbin_te.values, dtype=torch.float32)
 
-        self.nn_size = self.X_tr.shape[1]
-    
-        self.test_dataloader = DataLoader(UNSW_NB15_Dataset(self.X_te, Y_te), batch_size=self.args.batch_size, shuffle=False)
+        self.test_dataloader = DataLoader(CommonDataset(self.X_te, self.Y_te), batch_size=self.args.batch_size, shuffle=True)
         
         self.device = torch.device('cpu')
-        if self.args.quantized:
+        if self.args.model == 'mbnn' or self.args.model == 'tbnn':
             self.model_f = smaller
         else:
             self.model_f = deeper
         
         if self.args.distilled:
-            dist_cfg = get_distillation_cfg()
+            dist_cfg = get_cfg('distillation')
             self.teacher_path = dist_cfg.get('TEACHER', 'WEIGHT_PATH')
             self.soft_target_loss_weight = dist_cfg.getfloat('STUDENT', 'TEACHER_LOSS_WEIGHT')
             self.ce_loss_weight = dist_cfg.getfloat('STUDENT', 'STUDENT_LOSS_WEIGHT')
             self.T = dist_cfg.getfloat('DISTILLATION', 'T')
             weight = torch.load(self.teacher_path)
-            self.teacher = deeper(self.cfg, self.nn_size) 
+            self.teacher = deeper(self.cfg, self.nn_input_size) 
             self.teacher.load_state_dict(weight)
             
 
@@ -151,8 +172,13 @@ class Trainer():
         # retraining best fold on the entire dataset
         print('\nFinal model training:')
         self.model.load_state_dict(best_fold_w)
-        final_w, final_acc = self.train(self.X_tr, self.Y_tr)
 
+        final_w, final_acc = self.train(self.X_tr, self.Y_tr)
+        self.eval_model()
+
+        self.metrics_manager.displayConfMatrixPlot(EVALU, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
+
+        
         #TODO Make hyperparameters search and make last training from 0 with that found params
         
         # export
@@ -167,7 +193,7 @@ class Trainer():
     def cross_validate_model(self):
         for train_ids, val_ids in self.kfolder.split(self.X_tr, self.Y_tr):
             print(f'\n{10*"*"} CROSS VALIDATION FOLD {self.kfold_idx} {10*"*"}\n')
-            self.model = self.model_f(self.cfg, self.nn_size).to(device=self.device)
+            self.model = self.model_f(self.cfg, self.nn_input_size).to(device=self.device)
             self.train_case = f'{TRAIN}{self.kfold_idx}'
             self.valid_case = f'{VALID}{self.kfold_idx}'
             self.evalu_case = f'{EVALU}{self.kfold_idx}'
@@ -212,7 +238,7 @@ class Trainer():
             
             # self.metrics_manager.displayConfMatrixPlot(self.train_case, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
             # self.metrics_manager.displayConfMatrixPlot(self.valid_case, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
-                
+
         # if self.args.distilled:
         #     binw = self.model.get_bin_weights()
         #     binw[binw == -1] = 0
@@ -226,9 +252,9 @@ class Trainer():
         return self.best_fold
 
     def train(self, X, Y, X_val=None, Y_val=None):
-        dataset = UNSW_NB15_Dataset(X, Y)
+        dataset = CommonDataset(X, Y)
         sampler = ImbalancedDatasetSampler(dataset, Y if self.args.balance_dataset else None)
-        dataloader = DataLoader(dataset, batch_size=self.args.batch_size, shuffle=True if not self.args.balance_dataset else None)
+        dataloader = DataLoader(dataset, batch_size=self.args.batch_size, sampler=sampler if not self.args.balance_dataset else None)
             
         fold_acc = -np.inf
 
@@ -315,7 +341,7 @@ class Trainer():
 
 
     def val_model(self, X, Y):
-        dataset = UNSW_NB15_Dataset(X, Y)
+        dataset = CommonDataset(X, Y)
         dataloader = DataLoader(dataset, batch_size=self.args.batch_size, shuffle=False)
   
         preds = np.array([])
@@ -390,4 +416,4 @@ class Trainer():
         self.metrics_manager.addPrec(self.evalu_case, p)
         self.metrics_manager.addRec(self.evalu_case, r)
         self.metrics_manager.addF1(self.evalu_case, f1)
-        self.metrics_manager.addConfMatrix(self.evalu_case, truth, preds, f'Epoch n{self.epoch}')
+        self.metrics_manager.addConfMatrix(EVALU, truth, preds, f'Fold n. {self.kfold_idx}')

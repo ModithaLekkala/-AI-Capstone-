@@ -7,8 +7,19 @@ Flow statistics supported by the features pipeline:
 - dpkts
 - smeansz
 - dmeansz
-- synack
-- ackdat
+
+- synack // da rivedere
+- ackdat // da rivedere
+
+// todo
+- smaxbytes 
+- dmaxbytes
+- sminbytes
+- dminbytes
+- minbytes
+- maxbytes
+- tcp_flag
+- iat
 
 Work in progress:
 - stime

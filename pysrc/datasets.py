@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 
-class UNSW_NB15_Dataset(Dataset):
+class CommonDataset(Dataset):
     def __init__(self, X, Y):
         self.X = X
         self.Y = Y

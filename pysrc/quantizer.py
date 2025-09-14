@@ -27,5 +27,5 @@ class CommonBinWeightQuant(CommonBinQuant, WeightQuantSolver):
 class CommonBinActQuant(CommonBinQuant, ActQuantSolver):
     min_val = -1.0
     max_val = 1.0
-    scaling_const = 1
+    # scaling_const = 1
 

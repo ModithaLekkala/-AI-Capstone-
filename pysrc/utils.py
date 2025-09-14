@@ -44,32 +44,28 @@ def data_preprocess(data: pd.DataFrame, spec_dict, binarization=False):
             data[feature] = np.where(data[feature]<data[feature].quantile(0.95), data[feature], data[feature].quantile(0.95))
 
     # unskew data applying log
-    data_num = data.select_dtypes(include=[np.number])
-    for feature in data_num.columns:
-        if data_num[feature].nunique()>continuous_features_values:
-            if data_num[feature].min()==0:
-                data[feature] = np.log(data[feature]+1)
-            else:
-                data[feature] = np.log(data[feature])
+    # data_num = data.select_dtypes(include=[np.number])
+    # for feature in data_num.columns:
+    #     if data_num[feature].nunique()>continuous_features_values:
+    #         if data_num[feature].min()==0:
+    #             data[feature] = np.log(data[feature]+1)
+    #         else:
+    #             data[feature] = np.log(data[feature])
 
-
-    # split features and labels
-    samples = data[data.columns[:-1]]
-    labels = data[data.columns[-1]]
 
     # one hot encoding of categorical features
-    print(f'Feature count before one-hot encoding: {samples.shape[1]}')
-    one_hot = pd.get_dummies(data=samples, columns=cols_cat)
-    old_samples = samples
-    print(f'Feature count after one-hot encoding: {one_hot.shape[1]}')
-    print(f'Added   features: {one_hot[one_hot.columns.difference(old_samples.columns)].columns.to_list()}')
-    print(f'Removed features: {old_samples[old_samples.columns.difference(one_hot.columns)].columns.to_list()}')
-    samples=one_hot
+    # print(f'Feature count before one-hot encoding: {samples.shape[1]}')
+    # one_hot = pd.get_dummies(data=samples, columns=cols_cat)
+    # old_samples = samples
+    # print(f'Feature count after one-hot encoding: {one_hot.shape[1]}')
+    # print(f'Added   features: {one_hot[one_hot.columns.difference(old_samples.columns)].columns.to_list()}')
+    # print(f'Removed features: {old_samples[old_samples.columns.difference(one_hot.columns)].columns.to_list()}')
+    # samples=one_hot
 
     # from bool features to int
-    bool_cols = samples.select_dtypes(include=bool).columns
+    bool_cols = data.select_dtypes(include=bool).columns
     if(len(bool_cols) > 0):
-        samples[bool_cols] = samples[bool_cols].astype(int)
+        data[bool_cols] = data[bool_cols].astype(int)
 
     # standardize int features
     # if not binarization:
@@ -77,7 +73,7 @@ def data_preprocess(data: pd.DataFrame, spec_dict, binarization=False):
         # data_int = samples.select_dtypes(include=np.number)
         # samples[data_int.columns] = standardizer.fit_transform(data_int)
         
-        # # normalize float features
+        # normalize float features
         # normalizer = Normalizer()
         # data_float = samples.select_dtypes(include=np.number)
         # samples[data_float.columns] = normalizer.fit_transform(data_float)
@@ -95,11 +91,12 @@ def data_preprocess(data: pd.DataFrame, spec_dict, binarization=False):
     # else:
     #     X_bin = bin_desc = -1
         
+    
+    # return samples, labels.values, og_samples
+    return data, og_samples
 
-    return samples, labels.values, og_samples
 
-
-def data_binarization(samples: pd.DataFrame, get_only_size=False):
+def data_binarization(samples: pd.DataFrame, get_only_size=False, is_model_binarized=True, input_size=128):
     binft_totsize = 0
     binfeats_desc = {}
 
@@ -113,11 +110,36 @@ def data_binarization(samples: pd.DataFrame, get_only_size=False):
     print(f'Tot bit needed per sample: {binft_totsize}')
     print()
 
+    if(binft_totsize < input_size):
+        print(f'Feature expansion to {input_size}b.')
+        feat_no=0
+        while 1:
+            binfeats_desc[samples.columns[feat_no]] = binfeats_desc[samples.columns[feat_no]]+1
+            binft_totsize+=1
+            
+            if(binft_totsize >= input_size):
+                break
+            if(feat_no == len(samples.columns)-1):
+                feat_no=0
+            else:
+                feat_no+=1
+            
+
+        for feat in samples.columns:
+            print(f'Feat: {feat} Bit width: {binfeats_desc[feat]}')
+        print(f'New features bit width: {binft_totsize}')
+        print()
+        
+
+
     if get_only_size is True:
         return None, binft_totsize
     
     print('* FEATURE BINARIZATION *')
     bin_samples = np.zeros((samples.shape[0], binft_totsize))
+
+
+
     for i, feature_row in samples.iterrows():
         if i % 10000 == 0:
             print(f"Binarized samples [{i:>6d}/{samples.shape[0]:>6d}]")
@@ -125,6 +147,8 @@ def data_binarization(samples: pd.DataFrame, get_only_size=False):
         # the index at which the next binary value should be written
         write_ptr = 0
         for j, column_val in enumerate(feature_row):
+            if not str(column_val).isnumeric():
+                raise Exception(f'Binarized dataset sanity check failed | column {j} is not a number: {column_val}')
             tmp = list(bin(column_val)[2:])
             tmp = [int(x) for x in tmp]
             # zero padding to the left
@@ -133,21 +157,12 @@ def data_binarization(samples: pd.DataFrame, get_only_size=False):
                 bin_samples[i,write_ptr] = bin_val
                 write_ptr += 1
     
-    return bin_samples, binfeats_desc
+    return pd.DataFrame(bin_samples), binfeats_desc
 
-def get_model_cfg(name='default'):
+def get_cfg(name='mbnn'):
     cfg = ConfigParser()
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(current_dir, 'cfgs', name.lower() + '.ini')
-    assert os.path.exists(config_path), f"{config_path} not found."
-    cfg.read(config_path)
-    
-    return cfg
-
-def get_distillation_cfg(name='distillation'):
-    cfg = ConfigParser()
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(current_dir, 'cfgs', name.lower() + '.ini')
+    config_path = os.path.join(current_dir, 'configurations', name.lower() + '.ini')
     assert os.path.exists(config_path), f"{config_path} not found."
     cfg.read(config_path)
     

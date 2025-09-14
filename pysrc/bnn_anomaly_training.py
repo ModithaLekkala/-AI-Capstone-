@@ -19,11 +19,12 @@ def parse_args(args):
     parser = argparse.ArgumentParser(description="UNSW_NB15 Training")
 
     # Execution modes
-    parser.add_argument("--quantized", action="store_true", help="Neural network")
     parser.add_argument("--evaluate", dest="evaluate", action="store_true", help="evaluate model on validation set")
     parser.add_argument("--log_freq", type=int, default=40)
     parser.add_argument("--balance_dataset", action="store_true", help="if dataset is unbalanced from a classes distribution pov, balance it")
-    parser.add_argument("--distilled", action="store_true", help="if dataset is unbalanced from a classes distribution pov, balance it")
+    parser.add_argument("--distilled", action="store_true", help="train distilled model")
+    parser.add_argument("--model", type=none_or_str, required=True, help="NN between tbnn, mbnn, fullmlp")
+
 
     # Hyperparams
     parser.add_argument("--batch_size", default=2048, type=int, help="batch size")
@@ -33,14 +34,18 @@ def parse_args(args):
     parser.add_argument("--scheduler", default="FIXED", type=none_or_str, help="LR Scheduler")
     parser.add_argument("--patience", default=10, type=int, help="Scheduler step after that number of epochs without loss decrease")
     parser.add_argument("--momentum", default=0.9, type=float, help="Momentum")
-    parser.add_argument("--weight_decay", default=1e-2, type=float, help="Weight decay")
-    parser.add_argument("--epochs", default=10, type=int, help="Number of epochs")
+    parser.add_argument("--weight_decay", default=1e-3, type=float, help="Weight decay")
+    parser.add_argument("--epochs", default=2, type=int, help="Number of epochs")
     parser.add_argument("--folds", default=5, type=int, help="Number of fold for cross-validation")
     
     # Configurations
     parser.add_argument("--checkpoints_path", type=none_or_str,  default="pysrc/models", help="Directory where model checkpoitns will be saved")
-    parser.add_argument("--subset_size", type=int, default=None, help="If set, get a random subset, to troubleshooting purpose"
-)
+    parser.add_argument("--subset_size", type=int, default=None, help="If set, get a random subset, to troubleshooting purpose")
+
+    # Input dataset
+    parser.add_argument("--dataset-name", type=none_or_str, help="Dataset")
+    # parser.add_argument("--test-dataset-path", type=none_or_str, help="Test dataset path")
+
     parsed_args = parser.parse_args(args)
 
     return parsed_args
