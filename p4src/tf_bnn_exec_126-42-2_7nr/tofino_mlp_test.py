@@ -10,10 +10,14 @@ class BNN(Packet):
     name = "BNN_pkt"
     fields_desc = [ 
         ByteField("layer_no", 0),
-        XBitField ("l0_out", 0, 42),
-        XBitField("padding", 0, 6),
+        ByteField("l0_out_1", 0), # first bit of this field is for padding
+        ByteField("l0_out_2", 0), # first bit of this field is for padding
+        ByteField("l0_out_3", 0), # first bit of this field is for padding
+        ByteField("l0_out_4", 0), # first bit of this field is for padding
+        ByteField("l0_out_5", 0), # first bit of this field is for padding
+        ByteField("l0_out_6", 0), # first bit of this field is for padding
+        
         ByteField("l1_out", 0),
-        # ByteField("l2_out", 0x00),
 
         ShortField("input_offset", 0),
 
@@ -26,8 +30,7 @@ class BNN(Packet):
         ByteField("pop4", 0),
         ByteField("pop5", 0),
         ByteField("pop6", 0),
-        ByteField("pop7", 0),
-        
+        ByteField("pop7", 0),   
     ]
 
 bind_layers(Ether, BNN, type=0x2323)
@@ -64,7 +67,15 @@ def main():
         print(f'expected: {expected}')
 
         obtained = resp[BNN].l1_out
-        print(f'obtained: l0: {resp[BNN].l0_out} l1: {obtained}')
+        l0_out= (
+            f"{'{:07b}'.format(int(resp[BNN].l0_out_1))}" #cut-out the 1st bit padding
+            f"{'{:07b}'.format(int(resp[BNN].l0_out_2))}" #cut-out the 1st bit padding
+            f"{'{:07b}'.format(int(resp[BNN].l0_out_3))}" #cut-out the 1st bit padding
+            f"{'{:07b}'.format(int(resp[BNN].l0_out_4))}" #cut-out the 1st bit padding
+            f"{'{:07b}'.format(int(resp[BNN].l0_out_5))}" #cut-out the 1st bit padding
+            f"{'{:07b}'.format(int(resp[BNN].l0_out_6))}" #cut-out the 1st bit padding
+        )
+        print(f'obtained: l0: {hex(int(l0_out, 2))} l1: {obtained}')
 
         match = expected == obtained
         color = '\033[92m' if match else '\033[91m'

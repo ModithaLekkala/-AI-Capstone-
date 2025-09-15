@@ -24,26 +24,18 @@ const PortId_t POP_RECIRC_PORT = 192;
 const PortId_t LAYER_RECIRC_PORT = 193;
 const PortId_t CPU_PORT = 65;
 
-const bit<48> MAC_SND       = 0x00000000000a;
-
-
-const bit<8> m1_8 = 0x55;
-const bit<8> m2_8 = 0x33;
-const bit<8> m4_8 = 0x0f;
-
-const bit<32> m1_32 = 0x55555555;
-const bit<32> m2_32 = 0x33333333;
-const bit<32> m4_32 = 0x0f0f0f0f;
-const bit<32> m8_32 = 0x00ff00ff;
-const bit<32> m16_32 = 0x0000ffff;
-
 header bnn_pkt {
     bit<8> layer_no;
-    bit<42> l0_out;
-    @padding
-    bit<6> padding;
+    // bit<8> instead of bit<7> for optimization purpose 
+    bit<8> l0_out_1;
+    bit<8> l0_out_2;
+    bit<8> l0_out_3;
+    bit<8> l0_out_4;
+    bit<8> l0_out_5;
+    bit<8> l0_out_6;
+    
+
     bit<8> l1_out;
-    // bit<8> l2_out;
 
     bit<16> input_offset;
 
@@ -57,6 +49,9 @@ header bnn_pkt {
     popcount_t pop5;
     popcount_t pop6;
     popcount_t pop7;
+    
+    // @flexible
+    // bit<6> padding;
 }
 
 struct bnn_headers_t {

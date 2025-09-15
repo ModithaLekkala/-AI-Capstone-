@@ -156,22 +156,16 @@ for j in range(num_neuron_batches3):
         w0, w1 = row[base: base + parallel_neurons_cap3]
 
         print(
-            f"l1_weights.add_with_get_weights("
+            f"l1_weights.add_with_get_bin_weights("
             f"weight_batch={ix}, neuron_batch={j}, "
-            f"w0=0b{w0},w1=0b{w1},w2=0b0,w3=0b0"
-            f",w4=0b0,w5=0b0,w6=0b0"
+            f"w0=0b{w0},w1=0b{w1}"
             f")"
         )
-        l1_weights.add_with_get_weights(
+        l1_weights.add_with_get_bin_weights(
             f"{ix}",           # key “weight_batch”
             f"{j}",            # key “neuron_batch”
             f"0b{w0}",         # bit<8>  nr1_w
             f"0b{w1}",         # bit<8>  nr2_w
-            f"0b0",
-            f"0b0",
-            f"0b0",
-            f"0b0",
-            f"0b0",
         )
 
 print("→ Done loading all 42-bit weights into l1_weights (two-key table).\n")

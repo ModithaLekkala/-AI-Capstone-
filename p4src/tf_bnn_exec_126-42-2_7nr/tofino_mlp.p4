@@ -7,14 +7,11 @@
 
 #define WIDTH_IX_L0 8 /* (l0 weights width. / 16) -1  */
 #define WIDTH_IX_L1 2
-// #define WIDTH_IX_L2 0
 #define HEIGTH_IX_L0 5 /* (l0 neurons no. / 16) -1  */
 #define HEIGTH_IX_L1 0
-// #define HEIGTH_IX_L2 0
 #define INPUT_LEN 128
 #define L0_WEIGHT_TB_SIZE 126
 #define L1_WEIGHT_TB_SIZE 6
-// #define L2_WEIGHT_TB_SIZE 1
 #define LAST_LAYER_NO 1 /* number of layers -1 */
 
 #define POP_ACCUMULATE(y)\
@@ -25,12 +22,6 @@
         size = 16384;\
     }
 
-// #define WRITE_SIGN(frst, snd, thrd, frth,  layer, th)\
-//     if(hdr.bnn_pkt.pop4 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1;\
-//     if(hdr.bnn_pkt.pop3 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1;\
-//     if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 0; else hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 1;\
-//     if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##frth##:##frth##] = 0; else hdr.bnn_pkt.##layer##[##frth##:##frth##] = 1;
-
 #define WRITE_SIGN(frst, snd, thrd, frth, fifth, six, svn, layer, th) \
     if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##svn##:##svn##] = 0; else hdr.bnn_pkt.##layer##[##svn##:##svn##] = 1; \
     if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##six##:##six##] = 0; else hdr.bnn_pkt.##layer##[##six##:##six##] = 1; \
@@ -38,7 +29,7 @@
     if(hdr.bnn_pkt.pop4 >= th) hdr.bnn_pkt.##layer##[##frth##:##frth##] = 0; else hdr.bnn_pkt.##layer##[##frth##:##frth##] = 1; \
     if(hdr.bnn_pkt.pop5 >= th) hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 0; else hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 1; \
     if(hdr.bnn_pkt.pop6 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1; \
-    if(hdr.bnn_pkt.pop7 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1; \
+    if(hdr.bnn_pkt.pop7 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1;
 
 #define WRITE_SIGN_BIN(frst, snd, layer, th)\
     if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1;\
@@ -47,12 +38,13 @@
 #define APPLY_POP()\
     pop1.apply();\
     pop2.apply();\
-    pop3.apply();\
-    pop4.apply();\
-    pop5.apply();\
-    pop6.apply();\
-    pop7.apply();
-    // pop8.apply();
+    if(hdr.bnn_pkt.layer_no == 0) {\
+        pop3.apply();\
+        pop4.apply();\
+        pop5.apply();\
+        pop6.apply();\
+        pop7.apply();\
+    }
 
 #define FREE_POP()\
     hdr.bnn_pkt.pop1 = 0;\
@@ -62,7 +54,6 @@
     hdr.bnn_pkt.pop5 = 0;\
     hdr.bnn_pkt.pop6 = 0;\
     hdr.bnn_pkt.pop7 = 0;
-    // hdr.bnn_pkt.pop8 = 0;
 
 #define COPY()\
     nr2 = nr1;\
@@ -71,7 +62,6 @@
     nr5 = nr1;\
     nr6 = nr1;\
     nr7 = nr1;
-    // nr2 = nr1;
 
 parser BnnIngressParser(
     packet_in pkt,
@@ -115,7 +105,6 @@ control BnnIngress(
     bit<14> nr5=0;
     bit<14> nr6=0;
     bit<14> nr7=0;
-    // bit<14> nr8=0;
 
     Register<bit<16>, bit<16>>(9000) bnn_input_reg;
     RegisterAction<bit<16>,bit<16>, bit<14>>(bnn_input_reg) get_bnn_input_reg = {
@@ -123,7 +112,6 @@ control BnnIngress(
             out_var = (bit<14>)bnn_input;
         }
     };
-
 
     action get_weights(bit<14> nr1_w, bit<14> nr2_w, bit<14> nr3_w, bit<14> nr4_w, bit<14> nr5_w, bit<14> nr6_w, bit<14> nr7_w) {
         nr1 = nr1_w ^ nr1;
@@ -133,9 +121,13 @@ control BnnIngress(
         nr5 = nr5_w ^ nr5;
         nr6 = nr6_w ^ nr6;
         nr7 = nr7_w ^ nr7;
-        // nr8 = nr8_w ^ nr8;
     }
     
+    action get_bin_weights(bit<14> nr1_w, bit<14> nr2_w) {
+        nr1 = nr1_w ^ nr1;
+        nr2 = nr2_w ^ nr2;
+    }
+
     table l0_weights{
         actions = { get_weights; }
         key = { 
@@ -146,22 +138,13 @@ control BnnIngress(
     }
 
     table l1_weights{
-        actions = { get_weights; }
+        actions = { get_bin_weights; }
         key = { 
             hdr.bnn_pkt.pop_recirc: exact;
             hdr.bnn_pkt.nrs_recirc: exact;
         }
         size = L1_WEIGHT_TB_SIZE;
     }
-
-    // table l2_weights{
-    //     actions = { get_weights; }
-    //     key = { 
-    //         hdr.bnn_pkt.pop_recirc: exact;
-    //         hdr.bnn_pkt.nrs_recirc: exact;
-    //     }
-    //     size = L2_WEIGHT_TB_SIZE;
-    // }
 
     action pop_recirc() {
         ig_tm_md.ucast_egress_port = POP_RECIRC_PORT;
@@ -190,10 +173,9 @@ control BnnIngress(
 
     action send_back() {
         /*inference terminated*/
-
-        bit<48> tmp = hdr.ethernet.dst_addr;
-        hdr.ethernet.dst_addr = hdr.ethernet.src_addr;
-        hdr.ethernet.src_addr = tmp;
+        // bit<48> tmp = hdr.ethernet.dst_addr;
+        // hdr.ethernet.dst_addr = hdr.ethernet.src_addr;
+        // hdr.ethernet.src_addr = tmp;
         ig_tm_md.ucast_egress_port = (bit<9>)CPU_PORT;
     }
 
@@ -209,11 +191,8 @@ control BnnIngress(
         const entries = {
             ( 0, WIDTH_IX_L0, HEIGTH_IX_L0 &&& 0xFF ) : to_next_layer();
             ( 1, WIDTH_IX_L1, HEIGTH_IX_L1 &&& 0xFF ) : send_back();
-            // ( 1, WIDTH_IX_L1, HEIGTH_IX_L1 &&& 0xFF ) : to_next_layer();
-            // ( 2, WIDTH_IX_L2, HEIGTH_IX_L2 &&& 0xFF ) : send_back();
             ( 0, WIDTH_IX_L0, 0 &&& 0x00 )            : nrs_recirc();
             ( 1, WIDTH_IX_L1, 0 &&& 0x00 )            : nrs_recirc();
-            // ( 2, WIDTH_IX_L2, 0 &&& 0x00 )            : nrs_recirc();
         }
         const default_action = pop_recirc();
         // size=(LAST_LAYER_NO+1)+(LAST_LAYER_NO+1);
@@ -228,7 +207,6 @@ control BnnIngress(
     POP_ACCUMULATE(5)
     POP_ACCUMULATE(6)
     POP_ACCUMULATE(7)
-    // POP_ACCUMULATE(8)
 
     apply { 
 
@@ -238,29 +216,16 @@ control BnnIngress(
             nr1 = get_bnn_input_reg.execute(hdr.bnn_pkt.input_offset); //hdr.bnn_pkt.pop_recirc == input register offset indexed by cp
             COPY()
             l0_weights.apply();
-        } 
-        // else if(hdr.bnn_pkt.layer_no == 1){
-        //     /* get l0 output */
-        //     if(hdr.bnn_pkt.pop_recirc == 0) {
-        //         nr1 = hdr.bnn_pkt.l0_out[31:16];
-        //     } else if (hdr.bnn_pkt.pop_recirc == 1) {
-        //         nr1 = hdr.bnn_pkt.l0_out[15:0];
-        //     }
-        //     COPY()
-        //     l1_weights.apply();
-        // } 
-        // else if(hdr.bnn_pkt.layer_no == 2){
-        else if(hdr.bnn_pkt.layer_no == 1){
+        } else if(hdr.bnn_pkt.layer_no == 1){
             if(hdr.bnn_pkt.pop_recirc == 0) {
-                nr1 = hdr.bnn_pkt.l0_out[41:28];
+                nr1 = ((bit<14>)hdr.bnn_pkt.l0_out_1 << 7) | (bit<14>)hdr.bnn_pkt.l0_out_2;
             } else if (hdr.bnn_pkt.pop_recirc == 1) {
-                nr1 = hdr.bnn_pkt.l0_out[27:14];
-            }  else if (hdr.bnn_pkt.pop_recirc == 2) {
-                nr1 = hdr.bnn_pkt.l0_out[13:0];
+                nr1 = ((bit<14>)hdr.bnn_pkt.l0_out_3 << 7) | (bit<14>)hdr.bnn_pkt.l0_out_4;
+            } 
+            else if (hdr.bnn_pkt.pop_recirc == 2) {
+                nr1 = ((bit<14>)hdr.bnn_pkt.l0_out_5 << 7) | (bit<14>)hdr.bnn_pkt.l0_out_6;
             }
-            nr1 = (bit<14>)hdr.bnn_pkt.l1_out;
             nr2 = nr1; //COPY()
-            // l2_weights.apply();
             l1_weights.apply();
         }
 
@@ -269,39 +234,21 @@ control BnnIngress(
         /* ---- PARTIAL AND FINAL INFERENCE RESULT LOGIC FOR EACH LAYER ---- */
         if(hdr.bnn_pkt.layer_no == 0 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L0) {
             if (hdr.bnn_pkt.nrs_recirc == 0) {
-                WRITE_SIGN(35,36,37, 38,39,40,41,l0_out, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_1, 0x3F);
             } else if (hdr.bnn_pkt.nrs_recirc == 1) {
-                WRITE_SIGN(28,29,30, 31,32,33,34,l0_out, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_2, 0x3F);
             } else if (hdr.bnn_pkt.nrs_recirc == 2) {
-                WRITE_SIGN(21,22,23, 24,25,26,27,l0_out, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_3, 0x3F);
             } else if (hdr.bnn_pkt.nrs_recirc == 3) {
-                WRITE_SIGN(14,15,16,17,18,19,20,l0_out, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_4, 0x3F);
             } else if (hdr.bnn_pkt.nrs_recirc == 4) {
-                WRITE_SIGN(7,8,9,10,11,12,13,   l0_out, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_5, 0x3F);
             } else {
-                WRITE_SIGN(0,1,2,3,4,5,6,       l0_out, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_6, 0x3F);
             } 
-            // else if (hdr.bnn_pkt.nrs_recirc == 4) {
-            //     WRITE_SIGN(12,13,14,15, l0_out, 0x40);
-            // } else if (hdr.bnn_pkt.nrs_recirc == 5) {
-            //     WRITE_SIGN(8,9,10,11,   l0_out, 0x40);
-            // } else if (hdr.bnn_pkt.nrs_recirc == 6) {
-            //     WRITE_SIGN(4,5,6,7,     l0_out, 0x40);
-            // } else {
-            //     WRITE_SIGN(0,1,2,3,4,5,6,7,     l0_out, 0x40);
-            // }
         } 
-        // else if(hdr.bnn_pkt.layer_no == 1 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L1) {
-        //     if(hdr.bnn_pkt.nrs_recirc == 0) {
-        //         WRITE_SIGN(4,5,6,7, l1_out, 0x10)
-        //     } else if(hdr.bnn_pkt.nrs_recirc == 1) {
-        //         WRITE_SIGN(0,1,2,3, l1_out, 0x10)
-        //     }
-        // } 
-        // else if(hdr.bnn_pkt.layer_no == 2 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L2) {
         else if(hdr.bnn_pkt.layer_no == 1 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L1) {
-            // WRITE_SIGN_BIN(0, 1, l2_out, 0x4)
-            WRITE_SIGN_BIN(0, 1, l1_out, 0x4)
+            WRITE_SIGN_BIN(0, 1, l1_out, 0x15)
         }
         /* -------------------------------------------------------------------- */
 

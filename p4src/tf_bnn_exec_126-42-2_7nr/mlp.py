@@ -6,6 +6,8 @@ class FcLayer:
 
 class MLP:
     def __init__(self, input_layer_size, hidden_layers_sizes, output_layer_size):
+        print(f'Input size: {input_layer_size}')
+
         self.input_layer_size = input_layer_size
         self.output_layer_size = output_layer_size
         self.hidden_layers_sizes = hidden_layers_sizes
@@ -57,10 +59,11 @@ class MLP:
         h = [input_data^w_ for w_ in weights]
         if verbose:
             print('\033[1mAfter XOR\033[0m\n', '\n'.join(map(lambda x: self.hex_str(x, layer.input_size), h)))
-            print('\033[1mAfter popcount\033[0m', [self.popcount(h_) for h_ in h])
+            print('\033[1mAfter popcount\033[0m \t', [self.popcount(h_) for h_ in h])
+        print(f'Sign hreshold: {layer.input_size/2}' )
         y = [self.sign(self.popcount(h_), layer.input_size) for h_ in h]
         if verbose:
-            print('\033[1mAfter sign\033[0m', y)
+            print('\033[1mAfter sign\033[0m \t', y)
         binary_list = list(map(str, y))
 
         if reverse_output:
