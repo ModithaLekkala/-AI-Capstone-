@@ -11,7 +11,7 @@ RESET = "\033[0m"
 
 
 class MetricsManager():
-    def __init__(self, init_lr, init_epochs, scheduler, hidden_layers, distilled, init_wd):
+    def __init__(self, init_lr, init_epochs, scheduler, hidden_layers, distilled, init_wd, res_dir, dataset, model_arch, model_name):
         self.cases = {}
         self.bestacc = -np.inf
         self.bestfold = 0
@@ -23,6 +23,13 @@ class MetricsManager():
         self.hidden_layers = hidden_layers
         self.distilled = distilled
         self.init_wd = init_wd
+        self.res_dir = res_dir
+        self.dataset = dataset
+        self.model_arch = model_arch
+        self.model_name = model_name
+        print(f'Set results dir: [{self.res_dir}]')
+        print(f'Set results file: [{self.res_dir}/results_{self.dataset}.csv]')
+        print(f'Set model identifier: {self.model_arch}')
 
     def initCase(self, case):
         self.cases[case] = {
@@ -79,8 +86,8 @@ class MetricsManager():
             self.initCase(case)
         self.cases[case]['losses'].append(loss)
 
-    def displayTrainEvalAcc(self, model_name, dataset_name, epochs):
-        epochs = list(range(1, epochs+1))
+    def displayTrainEvalAcc(self):
+        self.epochs = list(range(1, self.epochs+1))
         plt.rcParams.update({'font.size': 18})
         plt.figure(figsize=(8, 5))
 
@@ -93,14 +100,14 @@ class MetricsManager():
         mean_valid = valid_mat.mean(axis=0)
         std_valid  = valid_mat.std(axis=0)
 
-        plt.plot(epochs, mean_train,  color='blue',  lw=2, label='Mean training accuracy')
-        plt.fill_between(epochs,
+        plt.plot(self.epochs, mean_train,  color='blue',  lw=2, label='Mean training accuracy')
+        plt.fill_between(self.epochs,
                         mean_train - std_train,
                         mean_train + std_train,
                         color='blue', alpha=0.2)
 
-        plt.plot(epochs, mean_valid, color='orange', lw=2, label='Mean validation accuracy', linestyle='--')
-        plt.fill_between(epochs,
+        plt.plot(self.epochs, mean_valid, color='orange', lw=2, label='Mean validation accuracy', linestyle='--')
+        plt.fill_between(self.epochs,
                         mean_valid - std_valid,
                         mean_valid + std_valid,
                         color='orange', alpha=0.2)
@@ -122,13 +129,13 @@ class MetricsManager():
         plt.legend(loc='lower right')
         plt.grid(False)
         plt.tight_layout()
-        now = datetime.now().strftime("%Y%m%d-%H%M%S")
-        out = f'pysrc/metric_plots/training_acc_{model_name}_{dataset_name}_{now}.png'
+        now = datetime.now().strftime("%d-%H%M%S")
+        out = f'{self.res_dir}/plots_{self.dataset}/training_acc_{self.model_name}_{self.model_arch}_{self.dataset}_{now}.png'
         plt.savefig(out)
         plt.close()
         print(f'Saved training chart to {out}')
 
-    def saveEvalResults(self, model_name):
+    def saveEvalResults(self):
         eval_cases = sorted(
             [c for c in self.cases if c.startswith('evalu') and c != 'evalu'],
             key=lambda c: int(c[len('evalu'):])
@@ -150,7 +157,7 @@ class MetricsManager():
             summary.append((m.rstrip('s'), mean, std))
 
         # 4) Write to CSV
-        out_filename = f"pysrc/metric_plots/results_{model_name}.csv"
+        out_filename = f"{self.res_dir}/results_{self.model_name}_{self.model_arch}_{self.dataset}.csv"
         with open(out_filename, 'w', newline='') as fp:
             writer = csv.writer(fp)
             writer.writerow(['metric', 'mean', 'std'])
@@ -160,7 +167,7 @@ class MetricsManager():
         print(f"Saved evaluation summary to {out_filename}")
 
 
-    def displayLosses(self, model_name, dataset_name):
+    def displayLosses(self):
         all_epochs = []
         for k, case in self.cases.items():
             if k.startswith("train"):
@@ -196,8 +203,8 @@ class MetricsManager():
         plt.grid(False)
         plt.tight_layout()
         plt.rcParams.update({'font.size': 18})
-        now = datetime.now().strftime("%Y%m%d-%H%M%S")
-        out = f"pysrc/metric_plots/training_loss_{model_name}_{dataset_name}_{now}.png"
+        now = datetime.now().strftime("%d-%H%M%S")
+        out = f"{self.res_dir}/plots_{self.dataset}/training_loss_{self.model_name}_{self.model_arch}_{self.dataset}_{now}.png"
         plt.savefig(out)
         plt.close()
         print(f'Saved loss chart to {out}')
@@ -214,24 +221,28 @@ class MetricsManager():
             self.cases[case]['cms_names'].append('DEFAULT TITLE')
         
 
-    def displayConfMatrixPlot(self, case, model_name, dataset_name):
+    def displayConfMatrixPlot(self, case):
         n_matrices = len(self.cases[case]['cms'])
         file_ct = 1
         if('evalu' in case):
-            rows = 2; cols = 3; xsize = 10; ysize = 8
+            rows = 1; cols = 1; xsize = 6; ysize = 6
+            assert(n_matrices==1, 'More than one confusion matrix for evaluation case.')
         else:
             rows = 4; cols = 5; xsize = 12; ysize = 9
 
         while(n_matrices > 0):
             fig, axes = plt.subplots(rows, cols, figsize=(xsize, ysize))
-            
-            for ax, cm, title in zip(axes.flatten(), self.cases[case]['cms'], self.cases[case]['cms_names']):
+            axes = np.atleast_1d(axes).flatten()
+
+            for ax, cm, title in zip(axes, self.cases[case]['cms'], self.cases[case]['cms_names']):
                 disp = ConfusionMatrixDisplay(confusion_matrix=cm)
                 disp.plot(ax=ax, values_format='d', cmap='Blues', colorbar=False)
                 ax.set_title(title)
 
             plt.tight_layout()
-            plt.savefig(f'pysrc/metric_plots/confusions/{case}{file_ct}__{model_name}__{dataset_name}_{datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")[:-3]}.png')
+            out=f'{self.res_dir}/plots_{self.dataset}/{case}{file_ct}_{self.model_name}_{self.model_arch}_{self.dataset}_{datetime.now().strftime("%d-%H:%M:%S.%f")[:-3]}.png'
+            print(f'Saved evaluation confusion matrix to {out}')
+            plt.savefig(out)
             plt.close(fig=fig)
             file_ct += 1
             n_matrices -= rows*cols # each png file contains 10 epoch conf matrices

@@ -32,14 +32,14 @@ def parse_args(args):
     parser.add_argument("--optim", type=none_or_str, default="ADAM", help="Optimizer to use")
     parser.add_argument("--loss", type=none_or_str, default="SqrHinge", help="Loss function to use")
     parser.add_argument("--scheduler", default="FIXED", type=none_or_str, help="LR Scheduler")
-    parser.add_argument("--patience", default=10, type=int, help="Scheduler step after that number of epochs without loss decrease")
+    parser.add_argument("--patience", default=6, type=int, help="Scheduler step after that number of epochs without loss decrease")
     parser.add_argument("--momentum", default=0.9, type=float, help="Momentum")
     parser.add_argument("--weight_decay", default=1e-3, type=float, help="Weight decay")
     parser.add_argument("--epochs", default=2, type=int, help="Number of epochs")
     parser.add_argument("--folds", default=5, type=int, help="Number of fold for cross-validation")
     
     # Configurations
-    parser.add_argument("--checkpoints_path", type=none_or_str,  default="pysrc/models", help="Directory where model checkpoitns will be saved")
+    parser.add_argument("--checkpoints_path", type=none_or_str,  default="pysrc/results", help="Directory where model checkpoitns will be saved")
     parser.add_argument("--subset_size", type=int, default=None, help="If set, get a random subset, to troubleshooting purpose")
 
     # Input dataset

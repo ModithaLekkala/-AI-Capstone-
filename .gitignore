@@ -212,5 +212,5 @@ pysrc/models/*
 pysrc/metric_plots/*
 log/*
 p4src/log/*
-
+!p4src/tf_feature_extr/include/include/common/*
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv

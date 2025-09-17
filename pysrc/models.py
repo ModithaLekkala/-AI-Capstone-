@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-DROPOUT = 0.3
+DROPOUT = 0.4
 
 # control plane dnn
 class DeeperNN(nn.Module):
@@ -30,6 +30,7 @@ class DeeperNN(nn.Module):
 def deeper(cfg, input_size, ):
     num_classes = cfg.getint('MODEL', 'NUM_CLASSES')
     out_features = ast.literal_eval(cfg.get('MODEL', 'OUT_FEATURES'))
+    print(f"Loading full model: [{input_size}, {', '.join(str(i) for i in out_features)}, {num_classes}].")
     net = DeeperNN(input_size, out_features, num_classes)
     return net
     
@@ -89,5 +90,6 @@ class SmallerNN(nn.Module):
 def smaller(cfg, input_size):
     num_classes = cfg.getint('MODEL', 'NUM_CLASSES')
     out_features = ast.literal_eval(cfg.get('MODEL', 'OUT_FEATURES'))
+    print(f"Loading binarized model: [{input_size}, {', '.join(str(i) for i in out_features)}, {num_classes}].")
     net = SmallerNN(input_size, out_features, num_classes)
     return net

@@ -26,7 +26,7 @@ const PortId_t CPU_PORT = 65;
 
 header bnn_pkt {
     bit<8> layer_no;
-    // bit<8> instead of bit<7> for optimization purpose 
+    // bit<8> instead of bit<7> for optimization purposes
     bit<8> l0_out_1;
     bit<8> l0_out_2;
     bit<8> l0_out_3;

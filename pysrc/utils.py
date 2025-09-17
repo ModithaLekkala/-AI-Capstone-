@@ -13,6 +13,8 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import roc_curve
 
+from pathlib import Path
+
 import warnings
 
 def round_to_nearest(x, n_blocks=4):
@@ -199,3 +201,10 @@ def metrics_binary_dataset(y_test, y_pred, y_score, is_bnn=False):
     roc_auc = auc(fpr_, tpr_)
 
     return a, p, r, tpr, fpr, fnr, f1, roc_auc
+
+def get_file_from_keyword(directory, keyword):
+    path = Path(directory)
+    for file in path.iterdir():
+        if file.is_file() and keyword in file.name:
+            return file
+    return None
