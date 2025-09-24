@@ -31,14 +31,13 @@ header bnn_pkt {
     bit<8> l0_out_2;
     bit<8> l0_out_3;
     bit<8> l0_out_4;
-    bit<8> l0_out_5;
-    bit<8> l0_out_6;
+    // bit<8> l0_out_5;
+    // bit<8> l0_out_6;
     
 
     bit<8> l1_out;
 
     bit<16> input_offset;
-    bit<16> input_offset_cp;
 
     bit<8> pop_recirc;
     bit<8> nrs_recirc;

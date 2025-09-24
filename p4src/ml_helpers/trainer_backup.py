@@ -3,8 +3,8 @@ import ast
 import pandas as pd
 import json
 
-from helpers.utils import get_cfg, data_preprocess, data_binarization, metrics_binary_dataset, get_file_from_keyword
-from helpers.datasets import CommonDataset
+from .utils import get_cfg, data_preprocess, data_binarization, metrics_binary_dataset, get_file_from_keyword
+from .datasets import CommonDataset
 from torch.utils.data import DataLoader
 
 import torch
@@ -14,16 +14,16 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import torch.nn.functional as F 
 import numpy as np
 
-from helpers.losses import SqrHingeLoss
-from helpers.metrics import MetricsManager
+from .losses import SqrHingeLoss
+from .metrics import MetricsManager
 
-from torchsampler import ImbalancedDatasetSampler
+# from torchsampler import ImbalancedDatasetSampler
 
-from models import smaller, deeper
+from .models import smaller, deeper
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.model_selection import train_test_split
 
-from helpers.shap_explainer import ShapExplainer
+from .shap_explainer import ShapExplainer
 
 
 import json
@@ -33,20 +33,40 @@ DATASET_PATH = '/home/sgeraci/Desktop/datasets'
 TRAIN = 'train'
 VALID = 'valid'
 EVALU = 'evalu'
-TRAIN_DATASET_PATH = f'{DATASET_PATH}/UNSW-NB15/UNSW_NB15_training-set.csv'
-EVALU_DATASET_PATH = f'{DATASET_PATH}/UNSW-NB15/UNSW_NB15_testing-set.csv'
 
 class Trainer():
-    def __init__(self, args):
-        self.args = args
+    def __init__(self, model_name='full', dataset_name='CICIDS2017', arch='dense'):
+        # Load trainer configuration
+        trainer_cfg = get_cfg('trainer')
+        
+        # Load parameters from config file
+        self.folds = trainer_cfg.getint('TRAINING', 'FOLDS')
+        self.batch_size = trainer_cfg.getint('TRAINING', 'BATCH_SIZE')
+        subset_size_str = trainer_cfg.get('TRAINING', 'SUBSET_SIZE')
+        self.subset_size = int(subset_size_str) if subset_size_str else None
+        self.loss = trainer_cfg.get('TRAINING', 'LOSS')
+        self.optim = trainer_cfg.get('TRAINING', 'OPTIM')
+        self.scheduler = trainer_cfg.get('TRAINING', 'SCHEDULER')
+        self.lr = trainer_cfg.getfloat('TRAINING', 'LR')
+        self.momentum = trainer_cfg.getfloat('TRAINING', 'MOMENTUM')
+        self.weight_decay = trainer_cfg.getfloat('TRAINING', 'WEIGHT_DECAY')
+        self.epochs = trainer_cfg.getint('TRAINING', 'EPOCHS')
+        self.balance_dataset = trainer_cfg.getboolean('TRAINING', 'BALANCE_DATASET')
+        self.distilled = trainer_cfg.getboolean('TRAINING', 'DISTILLED')
+        self.log_freq = trainer_cfg.getint('TRAINING', 'LOG_FREQ')
+        self.random_seed = trainer_cfg.getint('TRAINING', 'RANDOM_SEED')
+        
+        # Parameters passed directly
+        self.dataset_name = dataset_name
+        self.model_name = model_name
+        self.arch = arch
 
         # randomness
-        self.random_seed = 42
         gen = torch.manual_seed(self.random_seed)
 
         # init
-        self.cfg = get_cfg(self.args.model)
-        self.dataset_cfg = get_cfg(self.args.dataset_name)
+        self.cfg = get_cfg(self.arch)
+        self.dataset_cfg = get_cfg(self.dataset_name)
         self.num_classes = self.cfg.getint('MODEL', 'NUM_CLASSES')
         self.nn_input_size = self.cfg.getint('MODEL', 'INPUT_LAYER')
         self.hidden_nrs = ast.literal_eval(self.cfg.get('MODEL', 'OUT_FEATURES'))
@@ -56,24 +76,16 @@ class Trainer():
         self.dataset_path = self.dataset_cfg.get('DATASET', 'PATH')
         self.dataset_test_path = self.dataset_cfg.get('DATASET', 'TEST_PATH', fallback='')
         self.dataset_dir = os.path.dirname(self.dataset_path)
-        self.dataset_name = 'balanced' if self.args.balance_dataset else 'vanilla'
 
         self.selected_feats = json.loads(self.dataset_cfg.get('DATASET', 'SELECTED_FEATURES'))
         self.last_selected_feats_file = f'{DATASET_PATH}/{self.dataset}/last_selected_features.json'
 
-        self.kfolder = StratifiedShuffleSplit(n_splits=self.args.folds, test_size=0.1, random_state=self.random_seed)
+        self.kfolder = StratifiedShuffleSplit(n_splits=self.folds, test_size=0.1, random_state=self.random_seed)
         self.kfold_idx = 1
         self.best_acc = -np.inf
-        
-        if self.args.distilled:
-            self.model_name = 'distilled'
-        elif 'bnn' in self.args.model:
-            self.model_name = 'bnn' 
-        else:
-            self.model_name = 'full'
 
         # binarized dataset
-        bin_ds = f'{self.dataset_dir}/bin_{self.dataset}_{self.nn_input_size}b'
+        bin_ds = f'{self.dataset_dir}/bin_{self.dataset}_168b'
 
         if os.path.isfile(self.last_selected_feats_file):
             with open(self.last_selected_feats_file, 'r') as f:
@@ -116,7 +128,7 @@ class Trainer():
 
             print('\nDATASETS PREPROCESSING')
             x_tmp,  _ = data_preprocess(data[data.columns[:-1]], dict)
-            Xbin, _ = data_binarization(x_tmp.astype('int'), input_size=self.nn_input_size)
+            Xbin = data_binarization(x_tmp.astype('int'), selected_columns=self.selected_feats)
         
             print('Binarized dataset doesn\'t exists, saving it for future references... ', end='')
             pd.concat([pd.DataFrame(Xbin), Y], axis=1).to_csv(bin_ds, index=False)
@@ -138,15 +150,15 @@ class Trainer():
         self.X_tr = torch.tensor(Xbin_tr.values, dtype=torch.float32)
         self.X_te = torch.tensor(Xbin_te.values, dtype=torch.float32)
 
-        self.test_dataloader = DataLoader(CommonDataset(self.X_te, self.Y_te), batch_size=self.args.batch_size, shuffle=True)
+        self.test_dataloader = DataLoader(CommonDataset(self.X_te, self.Y_te), batch_size=self.batch_size, shuffle=True)
         
         self.device = torch.device('cpu')
-        if 'bnn' in self.args.model:
+        if 'bnn' in self.model_name:
             self.model_f = smaller
         else:
             self.model_f = deeper
         
-        if self.args.distilled:
+        if self.distilled:
             teacher_cfg_name = self.cfg.get('DISTILLATION', 'TEACHER')
             teacher_cfg = get_cfg(teacher_cfg_name)
 
@@ -173,9 +185,9 @@ class Trainer():
             self.teacher.load_state_dict(weight)
             
 
-        if self.args.subset_size:
+        if self.subset_size:
             N = len(self.Y_tr)
-            S = min(args.subset_size, N)
+            S = min(self.subset_size, N)
             # generate a shuffled permutation of indices [0..N-1]
             perm = torch.randperm(N, generator=gen)
             # take the first S indices
@@ -198,12 +210,12 @@ class Trainer():
             os.makedirs(f'{self.results_dir}/weights_{self.dataset}')
         print(' done')
 
-        self.metrics_manager = MetricsManager(self.args.lr, 
-                                              self.args.epochs, 
-                                              self.args.scheduler, 
+        self.metrics_manager = MetricsManager(self.lr, 
+                                              self.epochs, 
+                                              self.scheduler, 
                                               self.hidden_nrs, 
-                                              self.args.distilled, 
-                                              self.args.weight_decay, 
+                                              self.distilled, 
+                                              self.weight_decay, 
                                               self.results_dir, 
                                               self.dataset,
                                               self.model_arch,
@@ -212,30 +224,30 @@ class Trainer():
         
     def build_model(self):
         # loss
-        if self.args.loss == 'SqrHinge':
+        if self.loss == 'SqrHinge':
             self.criterion = SqrHingeLoss()
             self.model.features.append(nn.Tanh())
-        elif self.args.loss == 'CrossEntropy':
+        elif self.loss == 'CrossEntropy':
             self.criterion = nn.CrossEntropyLoss()
         else:
-            raise ValueError(f"{self.args.loss} not supported.")
+            raise ValueError(f"{self.loss} not supported.")
         self.criterion = self.criterion.to(device=self.device)
     
         # optimizer
-        if self.args.optim == 'ADAM':
-            self.optimizer = optim.Adam(self.model.parameters(),  lr=self.args.lr, weight_decay=self.args.weight_decay)
-        elif self.args.optim == 'SGD':
-            self.optimizer = optim.SGD(self.model.parameters(), lr=self.args.lr, momentum=self.args.momentum, weight_decay=self.args.weight_decay)
+        if self.optim == 'ADAM':
+            self.optimizer = optim.Adam(self.model.parameters(),  lr=self.lr, weight_decay=self.weight_decay)
+        elif self.optim == 'SGD':
+            self.optimizer = optim.SGD(self.model.parameters(), lr=self.lr, momentum=self.momentum, weight_decay=self.weight_decay)
         else:
-            raise Exception(f"Unrecognized optimizer {self.args.scheduler}")
+            raise Exception(f"Unrecognized optimizer {self.scheduler}")
 
         # LR scheduler
-        if self.args.scheduler == 'PLATEAU':
-            self.scheduler = ReduceLROnPlateau(optimizer=self.optimizer, patience=self.args.patience, verbose=True, min_lr=1e-7, factor=0.1)
-        elif self.args.scheduler == 'FIXED':
+        if self.scheduler == 'PLATEAU':
+            self.scheduler = ReduceLROnPlateau(optimizer=self.optimizer, patience=self.patience, verbose=True, min_lr=1e-7, factor=0.1)
+        elif self.scheduler == 'FIXED':
             self.scheduler = None
         else:
-            raise Exception(f"Unrecognized scheduler {self.args.scheduler}")
+            raise Exception(f"Unrecognized scheduler {self.scheduler}")
 
     def train_model(self):
         torch.autograd.set_detect_anomaly(True)
@@ -255,8 +267,8 @@ class Trainer():
         self.metrics_manager.displayConfMatrixPlot(EVALU)
 
         # export
-        best_fold_out = f'{self.results_dir}/weights_{self.dataset}/best_fold_{self.model_name}_{self.dataset_name}_acc{self.best_acc:.3f}.pth'
-        final_out = f'{self.results_dir}/weights_{self.dataset}/final_{self.model_name}_{self.dataset_name}_acc{final_acc:.3f}.pth'
+        best_fold_out = f'{self.results_dir}/weights_{self.dataset}/best_fold_{self.model_name}_acc{self.best_acc:.3f}.pth'
+        final_out = f'{self.results_dir}/weights_{self.dataset}/final_{self.model_name}_acc{final_acc:.3f}.pth'
         torch.save(best_fold_w, best_fold_out)
         torch.save(final_w, final_out)
         print(f'Best fold model saved in {best_fold_out}')
@@ -289,10 +301,7 @@ class Trainer():
             
             self.kfold_idx+=1
             
-            # self.metrics_manager.displayConfMatrixPlot(self.train_case, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
-            # self.metrics_manager.displayConfMatrixPlot(self.valid_case, dataset_name=self.dataset_name, model_name=f'{self.model_name}_kfold{self.kfold_idx}')
-
-        # if self.args.distilled:
+        # if self.distilled:
         #     binw = self.model.get_bin_weights()
         #     binw[binw == -1] = 0
         #     for ix, layerw in enumerate(binw):
@@ -305,12 +314,12 @@ class Trainer():
 
     def train(self, X, Y, X_val=None, Y_val=None):
         dataset = CommonDataset(X, Y)
-        sampler = ImbalancedDatasetSampler(dataset, Y if self.args.balance_dataset else None)
-        dataloader = DataLoader(dataset, batch_size=self.args.batch_size, sampler=sampler if not self.args.balance_dataset else None)
+        # sampler = ImbalancedDatasetSampler(dataset, Y if self.balance_dataset else None)
+        dataloader = DataLoader(dataset, batch_size=self.batch_size)
             
         fold_acc = -np.inf
 
-        for self.epoch in range(1, self.args.epochs+1):
+        for self.epoch in range(1, self.epochs+1):
             preds = np.array([])
             truth = np.array([])
 
@@ -331,7 +340,7 @@ class Trainer():
 
                 pred = self.model(X_tr)
 
-                if self.args.distilled:
+                if self.distilled:
                     with torch.no_grad():
                         teacher_logits = self.teacher(X_tr)
                     student_logits = pred
@@ -353,17 +362,17 @@ class Trainer():
                 if hasattr(self.model, 'clip_weights'):
                     self.model.clip_weights(-1, 1)
 
-                if self.args.loss == 'SqrHinge':
+                if self.loss == 'SqrHinge':
                     cls = pred.argmax(1).round()
-                elif self.args.loss == 'CrossEntropy':
+                elif self.loss == 'CrossEntropy':
                     cls = F.softmax(pred, dim=1).argmax(1)
                     
                 acc = (cls == Y_tr).float().mean()
                 self.metrics_manager.addLoss(self.train_case, (loss.item(), self.epoch))
 
-                if(batch % self.args.log_freq == 0):
+                if(batch % self.log_freq == 0):
                     loss, current = loss.item(), batch * dataloader.batch_size + len(X_tr)     
-                    self.metrics_manager.batchLog(mode=TRAIN, epoch_no=self.epoch, curr_len=current, dataset_len=len(dataloader.dataset), loss=loss, acc=acc, kfold=self.kfold_idx, epochs=self.args.epochs)
+                    self.metrics_manager.batchLog(mode=TRAIN, epoch_no=self.epoch, curr_len=current, dataset_len=len(dataloader.dataset), loss=loss, acc=acc, kfold=self.kfold_idx, epochs=self.epochs)
 
                 preds = np.hstack((preds, cls))
                 truth = np.hstack((truth, Y_tr))
@@ -397,7 +406,7 @@ class Trainer():
 
     def val_model(self, X, Y):
         dataset = CommonDataset(X, Y)
-        dataloader = DataLoader(dataset, batch_size=self.args.batch_size, shuffle=False)
+        dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
   
         preds = np.array([])
         truth = np.array([])
@@ -424,9 +433,9 @@ class Trainer():
             if hasattr(self.model, 'clip_weights'):
                 self.model.clip_weights(-1, 1)
 
-            if self.args.loss == 'SqrHinge':
+            if self.loss == 'SqrHinge':
                 cls = pred.argmax(1).round()
-            elif self.args.loss == 'CrossEntropy':
+            elif self.loss == 'CrossEntropy':
                 cls = F.softmax(pred, dim=1).argmax(1)
                 
             self.metrics_manager.addLoss(self.valid_case, (loss.item(), self.epoch))
@@ -440,7 +449,7 @@ class Trainer():
         avg_loss = losses.mean()
         self.metrics_manager.addAcc(self.valid_case, avg_acc)
         self.metrics_manager.addConfMatrix(self.valid_case, truth, preds, f'Epoch n{self.epoch}')
-        self.metrics_manager.batchLog(mode=VALID, epoch_no=self.epoch, curr_len=0, dataset_len=len(dataloader.dataset), loss=loss, acc=avg_acc, kfold=self.kfold_idx, epochs=self.args.epochs)
+        self.metrics_manager.batchLog(mode=VALID, epoch_no=self.epoch, curr_len=0, dataset_len=len(dataloader.dataset), loss=loss, acc=avg_acc, kfold=self.kfold_idx, epochs=self.epochs)
         print('\n')
 
         return avg_acc, avg_loss
@@ -456,9 +465,9 @@ class Trainer():
             # compute output
             pred = self.model(X_test)
 
-            if self.args.loss == 'SqrHinge':
+            if self.loss == 'SqrHinge':
                 cls = pred.argmax(1).round()
-            elif self.args.loss == 'CrossEntropy':
+            elif self.loss == 'CrossEntropy':
                 cls = F.softmax(pred, dim=1).argmax(1)
             cls = cls.detach().numpy()
 

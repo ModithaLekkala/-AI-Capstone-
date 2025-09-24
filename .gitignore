@@ -213,4 +213,7 @@ pysrc/metric_plots/*
 log/*
 p4src/log/*
 !p4src/tf_feature_extr/include/include/common/*
+pysrc/results*
+p4src/results*
+p4src/weights*
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv

@@ -3,7 +3,7 @@ import argparse
 import torch
 
 from trainer import Trainer
-from utils import suppress_warnings
+from helpers.utils import suppress_warnings
 
 def none_or_str(value):
     if value == "None":

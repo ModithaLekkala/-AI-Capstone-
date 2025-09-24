@@ -6,10 +6,9 @@
 #include "common/util.p4"
 
 #define WIDTH_IX_L0 8 /* (l0 weights width. / 16) -1  */
-#define WIDTH_IX_L1 2
-#define HEIGTH_IX_L0 5 /* (l0 neurons no. / 16) -1  */
+#define WIDTH_IX_L1 1
+#define HEIGTH_IX_L0 3 /* (l0 neurons no. / 16) -1  */
 #define HEIGTH_IX_L1 0
-#define INPUT_LEN 128
 #define L0_WEIGHT_TB_SIZE 126
 #define L1_WEIGHT_TB_SIZE 6
 #define LAST_LAYER_NO 1 /* number of layers -1 */
@@ -106,7 +105,7 @@ control BnnIngress(
     bit<14> nr6=0;
     bit<14> nr7=0;
 
-    Register<bit<16>, bit<16>>(9000) bnn_input_reg;
+    Register<bit<16>, bit<16>>(65535) bnn_input_reg;
     RegisterAction<bit<16>,bit<16>, bit<14>>(bnn_input_reg) get_bnn_input_reg = {
         void apply(inout bit<16> bnn_input, out bit<14> out_var) {
             out_var = (bit<14>)bnn_input;
@@ -156,7 +155,7 @@ control BnnIngress(
                 
         hdr.bnn_pkt.pop_recirc = 0;
         hdr.bnn_pkt.nrs_recirc = hdr.bnn_pkt.nrs_recirc + 1;
-        hdr.bnn_pkt.input_offset= hdr.bnn_pkt.input_offset_cp;
+        hdr.bnn_pkt.input_offset= 0;
         ig_tm_md.ucast_egress_port = POP_RECIRC_PORT;
     }
 
@@ -222,9 +221,9 @@ control BnnIngress(
             } else if (hdr.bnn_pkt.pop_recirc == 1) {
                 nr1 = ((bit<14>)hdr.bnn_pkt.l0_out_3 << 7) | (bit<14>)hdr.bnn_pkt.l0_out_4;
             } 
-            else if (hdr.bnn_pkt.pop_recirc == 2) {
-                nr1 = ((bit<14>)hdr.bnn_pkt.l0_out_5 << 7) | (bit<14>)hdr.bnn_pkt.l0_out_6;
-            }
+            // else if (hdr.bnn_pkt.pop_recirc == 2) {
+            //     nr1 = ((bit<14>)hdr.bnn_pkt.l0_out_5 << 7) | (bit<14>)hdr.bnn_pkt.l0_out_6;
+            // }
             nr2 = nr1; //COPY()
             l1_weights.apply();
         }
@@ -241,14 +240,15 @@ control BnnIngress(
                 WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_3, 0x3F);
             } else if (hdr.bnn_pkt.nrs_recirc == 3) {
                 WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_4, 0x3F);
-            } else if (hdr.bnn_pkt.nrs_recirc == 4) {
-                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_5, 0x3F);
-            } else {
-                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_6, 0x3F);
             } 
+            // else if (hdr.bnn_pkt.nrs_recirc == 4) {
+            //     WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_5, 0x3F);
+            // } else {
+            //     WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_6, 0x3F);
+            // } 
         } 
         else if(hdr.bnn_pkt.layer_no == 1 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L1) {
-            WRITE_SIGN_BIN(0, 1, l1_out, 0x15)
+            WRITE_SIGN_BIN(0, 1, l1_out, 0xE)
         }
         /* -------------------------------------------------------------------- */
 

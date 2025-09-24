@@ -1,5 +1,5 @@
 import numpy as np 
-from pycommon import hex_inputs, hex_w, nn, hex_w2
+from pycommon import hex_input, hex_w, nn, hex_w2
 
 def generate_14bit():
     """
@@ -175,16 +175,12 @@ print("→ Done loading all 42-bit weights into l1_weights (two-key table).\n")
 #     and write them into bnn_input_reg[0..15].
 # -------------------------------------------------
 assert len(hex_input) == 126, "hex_input must be exactly 126 bin digits"
-ix=0
-for hex_input in hex_inputs:
-    # Make sixteen 4-digit substrings:
-    input_chunks = [ f'00{hex_input[i : i + 14]}' for i in range(0, 126, 14) ]
 
-    for piece in input_chunks:
-        print(f"bnn_input_reg.add({idx}, 0b{piece})")
-        bnn_input_reg.add(ix, f"0b{piece}")
-        ix+1
-        
-    idx+=7
+# Make sixteen 4-digit substrings:
+input_chunks = [ f'00{hex_input[i : i + 14]}' for i in range(0, 126, 14) ]
 
-print("→ Done loading the 126-bit inputs into registers.")
+for idx, piece in enumerate(input_chunks):
+    print(f"bnn_input_reg.add({idx}, 0b{piece})")
+    bnn_input_reg.add(idx, f"0b{piece}")
+
+print("→ Done loading the 126-bit input into register slots 0..8.")

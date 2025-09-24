@@ -1,9 +1,7 @@
 import os
-import torch
 import numpy as np
 import pandas as pd
 
-from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
 from configparser import ConfigParser
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import auc
@@ -98,73 +96,45 @@ def data_preprocess(data: pd.DataFrame, spec_dict, binarization=False):
     return data, og_samples
 
 
-def data_binarization(samples: pd.DataFrame, get_only_size=False, is_model_binarized=True, input_size=128):
-    binft_totsize = 0
-    binfeats_desc = {}
-
-    # gathering feature needing bit width
-    for feat in samples.columns:
-        max_val = samples[feat].abs().max()
-        bin_width = len(bin(max_val)[2:])
-        binfeats_desc[feat] = bin_width 
-        print(f'Feat: {feat} Bit width: {bin_width} | Max value {max_val}')
-        binft_totsize+=bin_width
-    print(f'Tot bit needed per sample: {binft_totsize}')
-    print()
-
-    if(binft_totsize < input_size):
-        print(f'Feature expansion to {input_size}b.')
-        feat_no=0
-        while 1:
-            binfeats_desc[samples.columns[feat_no]] = binfeats_desc[samples.columns[feat_no]]+1
-            binft_totsize+=1
-            
-            if(binft_totsize >= input_size):
-                break
-            if(feat_no == len(samples.columns)-1):
-                feat_no=0
-            else:
-                feat_no+=1
-            
-
-        for feat in samples.columns:
-            print(f'Feat: {feat} Bit width: {binfeats_desc[feat]}')
-        print(f'New features bit width: {binft_totsize}')
-        print()
-        
-
-
-    if get_only_size is True:
-        return None, binft_totsize
+def data_binarization(samples: pd.DataFrame, selected_columns=None):
+    # Load feature bit widths from configuration file
+    binarization_cfg = get_cfg('binarization')
+    feaures_bit_width = {}
     
-    print('* FEATURE BINARIZATION *')
-    bin_samples = np.zeros((samples.shape[0], binft_totsize))
+    # Read all feature bit widths from the config file
+    for feature_name in binarization_cfg.options('FEATURE_BIT_WIDTHS'):
+        feaures_bit_width[feature_name] = binarization_cfg.getint('FEATURE_BIT_WIDTHS', feature_name)
 
-
-
-    for i, feature_row in samples.iterrows():
-        if i % 10000 == 0:
-            print(f"Binarized samples [{i:>6d}/{samples.shape[0]:>6d}]")
-
-        # the index at which the next binary value should be written
+    total_bits = sum(feaures_bit_width.values())
+    Xbin = np.zeros((samples.shape[0], total_bits))
+    
+    for i in range(samples.shape[0]):
         write_ptr = 0
-        for j, column_val in enumerate(feature_row):
-            if not str(column_val).isnumeric():
-                raise Exception(f'Binarized dataset sanity check failed | column {j} is not a number: {column_val}')
-            tmp = list(bin(column_val)[2:])
-            tmp = [int(x) for x in tmp]
-            # zero padding to the left
-            tmp = [0]*(binfeats_desc[samples.columns[j]] - len(tmp)) + tmp
-            for k, bin_val in enumerate(tmp):
-                bin_samples[i,write_ptr] = bin_val
+        
+        for j, feature_name in enumerate(selected_columns):
+            column_val = int(samples.iloc[i, j])
+            
+            # Clamp value to maximum representable value
+            bit_width = feaures_bit_width[feature_name]
+            max_val = (2 ** bit_width) - 1
+            column_val = min(column_val, max_val)
+            
+            # Convert to binary and pad with zeros
+            binary_str = bin(column_val)[2:]
+            binary_list = [int(x) for x in binary_str]
+            padded_binary = [0] * (bit_width - len(binary_list)) + binary_list
+            
+            # Write binary values to output array
+            for bin_val in padded_binary:
+                Xbin[i, write_ptr] = bin_val
                 write_ptr += 1
-    
-    return pd.DataFrame(bin_samples), binfeats_desc
+
+    return Xbin
 
 def get_cfg(name='mbnn'):
     cfg = ConfigParser()
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(current_dir, 'configurations', name.lower() + '.ini')
+    # current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join('/home/sgeraci/slu/inet-hynn/p4src', 'configs', name.lower() + '.ini')
     assert os.path.exists(config_path), f"{config_path} not found."
     cfg.read(config_path)
     
