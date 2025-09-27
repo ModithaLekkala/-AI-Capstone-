@@ -16,7 +16,7 @@ if [ "$2" == "bmv2" ]; then
   arch="v1model"
 elif [[ -z "$2" || "$2" == "tna" ]]; then
   echo "Target used: TNA/Tofino."
-  compiler="p4c-tna"
+  compiler="bf-p4c"
   target="tofino"
   arch="tna"
 fi

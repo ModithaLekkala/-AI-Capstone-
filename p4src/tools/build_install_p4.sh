@@ -8,7 +8,7 @@ P4_FILE=""
 SDE="${SDE:-}"
 SDE_INSTALL="${SDE_INSTALL:-}"
 BUILD_DIR=""
-P4C=""                  # defaults to $SDE_INSTALL/bin/p4c-tna
+P4C=""                  # defaults to $SDE_INSTALL/bin/bf-p4c
 TARGET="tofino"         # or tofino2
 INIT_MODE="2"           # 0=noinit, 1=warm, 2=cold
 JOBS="$(nproc)"
@@ -28,7 +28,7 @@ Common:
   -s, --sde <path>           Override \$SDE
   -i, --sde-install <path>   Override \$SDE_INSTALL
   -b, --build-dir <path>     Build dir (default: ./build/<program>)
-  -c, --p4c <path>           p4c-tna path (default: \$SDE_INSTALL/bin/p4c-tna)
+  -c, --p4c <path>           bf-p4c path (default: \$SDE_INSTALL/bin/bf-p4c)
   -t, --target <name>        Target (default: tofino)
   -m, --init-mode <0|1|2>    bf_switchd init mode (default: 2)
   -j, --jobs <N>             Parallel build jobs (default: $(nproc))
@@ -71,8 +71,8 @@ done
 [[ -f "$P4_FILE" ]] || die "P4 file not found: $P4_FILE"
 [[ -d "$SDE_INSTALL" ]] || die "SDE_INSTALL not a directory: $SDE_INSTALL"
 
-P4C="${P4C:-$SDE_INSTALL/bin/p4c-tna}"
-[[ -x "$P4C" ]] || die "p4c-tna not executable: $P4C"
+P4C="${P4C:-$SDE_INSTALL/bin/bf-p4c}"
+[[ -x "$P4C" ]] || die "bf-p4c not executable: $P4C"
 
 BUILD_DIR="${BUILD_DIR:-$(pwd)/build/$PROG}"
 mkdir -p "$BUILD_DIR"

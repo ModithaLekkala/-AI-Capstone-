@@ -7,12 +7,3 @@ This work is in collaboration with Lorenzo Pappone and Flavio Esposito from Sain
 ## Tree strcure
 - p4src: It contains both BNN and statistics pipelines for Tofino SDE.
 - pysrc: It contains the BNN training and evaluation scripts.
-
-## Dependencies
-In order to successfully run the pysrc code you need to create a virtual environment and install the necessary dependencies listed in requirements.txt.
-
-in order to successfully run the p4src code you need to install:
-- mininet
-- p4utils
-- p4studio
-- scapy

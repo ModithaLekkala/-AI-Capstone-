@@ -4,7 +4,7 @@
 
 #define CHECK_FLAG(flg)\
     if(meta.##flg##_flag==1) {\
-        flow_##flg##+=1;\
+        flow_##flg##=flow_##flg##+1;\
     }\
     rv = (bit<4>)flow_##flg##;
 

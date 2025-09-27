@@ -164,7 +164,7 @@ control BnnIngress(
         FREE_POP()
         /* current layer completed executed 
             send result for next layer processing */
-        hdr.bnn_pkt.layer_no += 1;
+        hdr.bnn_pkt.layer_no = hdr.bnn_pkt.layer_no + 1;
         hdr.bnn_pkt.pop_recirc = 0;
         hdr.bnn_pkt.nrs_recirc = 0;
         hdr.bnn_pkt.input_offset= 0;

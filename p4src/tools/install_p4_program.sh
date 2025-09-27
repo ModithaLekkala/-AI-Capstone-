@@ -1,3 +1,3 @@
-export SDE=/home/sgeraci/p4/open-p4studio && export SDE_INSTALL=/home/sgeraci/p4/open-p4studio/install && cd /home/sgeraci/slu/inet-hynn/p4src/build; 
-cmake $SDE/p4studio/ -DCMAKE_INSTALL_PREFIX=$SDE/install -DCMAKE_MODULE_PATH=$SDE/cmake  -DP4_NAME=multipipe_inetml -DP4_PATH=/home/sgeraci/slu/inet-hynn/p4src/multipipe_inetml.p4 -DP4C=/home/sgeraci/p4/open-p4studio/install/bin/p4c-tna;
+export SDE=/home/sgeraci/bf-sde-9.13.4 && export SDE_INSTALL=/home/sgeraci/bf-sde-9.13.4/install && cd /home/sgeraci/inet-hynn/p4src/build; 
+cmake $SDE/p4studio/ -DCMAKE_INSTALL_PREFIX=$SDE/install -DCMAKE_MODULE_PATH=$SDE/cmake  -DP4_NAME=multipipe_inetml -DP4_PATH=/home/sgeraci/inet-hynn/p4src/multipipe_inetml.p4 -DP4C=/home/sgeraci/bf-sde-9.13.4/install/bin/bf-p4c;
 make multipipe_inetml && make install
