@@ -12,5 +12,5 @@
 7) Launch client on external terminal running `sudo python p4src/client.py --pcap <pcapfile_path>` 
 
 ### Dependencies
-Supported Python versions [3.8, 3.10]
-run: `sudo python -m pip install --upgrade --no-cache-dir --target $SDE_INSTALL/lib/python<pyversion>/site-packages -r requirement.txt`
+Supported Python versions: 3.8, 3.10
+Run: `sudo python -m pip install --upgrade --no-cache-dir --target $SDE_INSTALL/lib/python<pyversion>/site-packages -r requirement.txt`
