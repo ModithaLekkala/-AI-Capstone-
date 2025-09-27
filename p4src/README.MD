@@ -13,4 +13,4 @@
 
 ### Dependencies
 Supported Python versions [3.8, 3.10]
-run: `sudo python -m pip install --upgrade --no-cache-dir --target $SDE_INSTALL/lib/python<pyversion>/site-packages "numpy==1.24.4" "pandas==1.5.3" -r requirement.txt`
+run: `sudo python -m pip install --upgrade --no-cache-dir --target $SDE_INSTALL/lib/python<pyversion>/site-packages -r requirement.txt`
