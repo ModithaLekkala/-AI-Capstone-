@@ -222,7 +222,7 @@ def main():
     max_unsw_fraction = 0.4
     DATASET_SWITCH_START = 20
     DATASET_SWITCH_END = 40
-    CRITICAL_SAMPLES_WINDOW = 15000
+    CRITICAL_SAMPLES_WINDOW = 35000
     ENABLE_RANDOM_BNN = False  # Killswitch for random BNN model
 
     # Load datasets
@@ -340,11 +340,12 @@ def main():
     # Initialize critical sample collection for SHAP BNN retraining
     critical_samples_X = []
     critical_samples_Y = []
-    RETRAIN_BATCH = 90
+    retrained_bnn_shap = None  # Will hold the retrained model
+    retraining_completed = False
 
     # Prepare evaluation batches
-    batch_size = 500
-    n_batches = 300
+    batch_size = 1500
+    n_batches = 170
     
     # distribution shift starting point
     shift_start_batch = DATASET_SWITCH_START
@@ -434,6 +435,7 @@ def main():
     shap_accuracies = []
     teacher_accuracies = []
 
+    retrain_batch = 0
     for i in range(n_batches):
         batch_X = eval_batches_X[i]
         batch_Y = eval_batches_Y[i]
@@ -447,7 +449,7 @@ def main():
         teacher_accuracies.append(teacher_res['accuracy'])
 
         # Collect critical samples for SHAP BNN before retraining
-        if i + 1 < RETRAIN_BATCH and len(critical_samples_X) < CRITICAL_SAMPLES_WINDOW:
+        if not retraining_completed and len(critical_samples_X) < CRITICAL_SAMPLES_WINDOW:
             with torch.no_grad():
                 batch_tensor = torch.tensor(batch_X[:, shap_feat_idx], dtype=torch.float32, device=bnn_shap.device)
                 confidences = get_confidence_safe(bnn_shap, batch_tensor)
@@ -461,29 +463,47 @@ def main():
                             mlp_label = mlp_logits.argmax().item()
                         critical_samples_Y.append(mlp_label)
 
-        # Retrain SHAP BNN at specified batch
-        if i + 1 == RETRAIN_BATCH and len(critical_samples_X) > 0:
-            print(f"\nRetraining SHAP BNN with {len(critical_samples_X)} critical samples...")
+        # Retrain SHAP BNN when enough critical samples are gathered
+        if not retraining_completed and len(critical_samples_X) >= CRITICAL_SAMPLES_WINDOW:
+            retrain_batch = i + 1
+            retraining_completed = True
+            print(f"\nRetraining SHAP BNN with {len(critical_samples_X)} critical samples at batch {retrain_batch}...")
+            
+            # Analyze original training data composition
+            orig_cic_count = len(X_cic_train)
+            orig_unsw_count = len(X_unsw_train)
             
             # Combine original training data with critical samples
             retrain_X = np.vstack([X_tr, np.array(critical_samples_X)])
             retrain_Y = np.hstack([Y_tr, np.array(critical_samples_Y)])
+            
+            print(f"Retraining dataset composition:")
+            print(f"  Original training: {len(X_tr):,} samples ({orig_cic_count:,} CICIDS2017 + {orig_unsw_count:,} UNSW-NB15)")
+            print(f"  Critical samples: {len(critical_samples_X):,} samples (MLP-labeled)")
+            print(f"  Total retraining: {len(retrain_X):,} samples")
             
             # Shuffle combined dataset
             shuffle_idx = np.random.permutation(len(retrain_X))
             retrain_X = retrain_X[shuffle_idx]
             retrain_Y = retrain_Y[shuffle_idx]
             
-            # Retrain SHAP BNN from scratch
-            bnn_shap.reset_model()
-            bnn_shap.train(retrain_X[:, shap_feat_idx], retrain_Y, verbose=True)
+            # Create new trainer instance for retraining
+            print("Creating new SHAP BNN trainer instance for retraining...")
+            retrained_bnn_shap = SimpleTrainer('tf_bnn_shap_retrained', ARCH, 'cpu')
+            retrained_bnn_shap.reset_model()
+            retrained_bnn_shap.train(retrain_X[:, shap_feat_idx], retrain_Y, verbose=True)
 
-        # Evaluate SHAP BNN (after potential retraining)
-        shap_res = bnn_shap.eval_model(batch_X[:, shap_feat_idx], batch_Y, verbose=False)
+        # Evaluate SHAP BNN (use retrained model if available)
+        if retraining_completed:
+            print('Retrained model available. Take it')
+            current_shap_model = retrained_bnn_shap
+        else:
+            current_shap_model = bnn_shap
+        shap_res = current_shap_model.eval_model(batch_X[:, shap_feat_idx], batch_Y, verbose=False)
         shap_accuracies.append(shap_res['accuracy'])
 
-        retrain_flag = "[RETRAINED]" if i + 1 == RETRAIN_BATCH else ""
-        critical_count_info = f"(Critical: {len(critical_samples_X)})" if i + 1 < RETRAIN_BATCH else ""
+        retrain_flag = "[RETRAINED]" if i + 1 == retrain_batch else ""
+        critical_count_info = f"(Critical: {len(critical_samples_X)})" if not retraining_completed else ""
         unsw_pct = unsw_fractions[i] * 100
         
         if ENABLE_RANDOM_BNN:
@@ -492,7 +512,7 @@ def main():
             print(f"Batch {i+1:2d} ({unsw_pct:.1f}% UNSW) - BNN SHAP: {shap_res['accuracy']:.3f}, MLP: {teacher_res['accuracy']:.3f} {critical_count_info} {retrain_flag}")
     
     # Apply rolling average of last 5 batches for smoother plotting
-    window_size = 7
+    window_size = 10
     smoothed_rand_accuracies = []
     smoothed_shap_accuracies = []
     smoothed_teacher_accuracies = []
@@ -539,9 +559,9 @@ def main():
     ax.axvline(x=first_mixed_batch, color='orange', linestyle='--', alpha=0.7, linewidth=2, label='Distribution Shift')
     
     # Add retraining line
-    ax.axvline(x=RETRAIN_BATCH, color='red', linestyle=':', alpha=0.7, linewidth=2, label='SHAP Retraining')
+    ax.axvline(x=retrain_batch, color='red', linestyle=':', alpha=0.7, linewidth=2, label='SHAP Retraining')
 
-    ax.legend(loc='lower right')
+    ax.legend(loc='lower left', fontsize=22)
     plt.tight_layout()
     
     out_path = f'bnn_gradual_shift_eval_to_{max_unsw_fraction:.2f}.png'

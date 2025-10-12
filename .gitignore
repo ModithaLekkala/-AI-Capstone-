@@ -216,4 +216,12 @@ p4src/log/*
 pysrc/results*
 p4src/results*
 p4src/weights*
+p4src/shaps*
+*.png
+*.jpg
+*.jpeg
+*.pth
+*.pkl
+*.csv
+*.npy
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv
