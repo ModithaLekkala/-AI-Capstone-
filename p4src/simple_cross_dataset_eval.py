@@ -218,12 +218,16 @@ def analyze_confidence_distribution(bnn_trainer: SimpleTrainer, X_val_shaped, Y_
 
 def main():
     # Configuration
+    # ARCH = 'dense'
     ARCH = 'tiny'
+
     max_unsw_fraction = 0.4
     DATASET_SWITCH_START = 20
     DATASET_SWITCH_END = 40
-    CRITICAL_SAMPLES_WINDOW = 35000
-    ENABLE_RANDOM_BNN = False  # Killswitch for random BNN model
+    # CRITICAL_SAMPLES_WINDOW = 70000
+    CRITICAL_SAMPLES_WINDOW = 30000
+
+    ENABLE_RANDOM_BNN = True  # Killswitch for random BNN model
 
     # Load datasets
     print("Loading CICIDS2017...")
@@ -344,7 +348,7 @@ def main():
     retraining_completed = False
 
     # Prepare evaluation batches
-    batch_size = 1500
+    batch_size = 1000
     n_batches = 170
     
     # distribution shift starting point
@@ -473,12 +477,23 @@ def main():
             orig_cic_count = len(X_cic_train)
             orig_unsw_count = len(X_unsw_train)
             
-            # Combine original training data with critical samples
-            retrain_X = np.vstack([X_tr, np.array(critical_samples_X)])
-            retrain_Y = np.hstack([Y_tr, np.array(critical_samples_Y)])
+            # Take 100,000 samples from original training data
+            retrain_samples = 95000
+            # retrain_samples = 30000
+            if len(X_tr) >= retrain_samples:
+                retrain_indices = np.random.choice(len(X_tr), retrain_samples, replace=False)
+                retrain_og_X = X_tr[retrain_indices]
+                retrain_og_Y = Y_tr[retrain_indices]
+            else:
+                retrain_og_X = X_tr
+                retrain_og_Y = Y_tr
+            
+            # Combine selected original training data with critical samples
+            retrain_X = np.vstack([retrain_og_X, np.array(critical_samples_X)])
+            retrain_Y = np.hstack([retrain_og_Y, np.array(critical_samples_Y)])
             
             print(f"Retraining dataset composition:")
-            print(f"  Original training: {len(X_tr):,} samples ({orig_cic_count:,} CICIDS2017 + {orig_unsw_count:,} UNSW-NB15)")
+            print(f"  Original training subset: {len(retrain_og_X):,} samples (from {len(X_tr):,} total)")
             print(f"  Critical samples: {len(critical_samples_X):,} samples (MLP-labeled)")
             print(f"  Total retraining: {len(retrain_X):,} samples")
             
@@ -491,6 +506,7 @@ def main():
             print("Creating new SHAP BNN trainer instance for retraining...")
             retrained_bnn_shap = SimpleTrainer('tf_bnn_shap_retrained', ARCH, 'cpu')
             retrained_bnn_shap.reset_model()
+            retrained_bnn_shap.epochs += 40
             retrained_bnn_shap.train(retrain_X[:, shap_feat_idx], retrain_Y, verbose=True)
 
         # Evaluate SHAP BNN (use retrained model if available)
@@ -556,10 +572,25 @@ def main():
 
     # Vertical line at first mixed batch (1-based index)
     first_mixed_batch = shift_start_batch + 1
-    ax.axvline(x=first_mixed_batch, color='orange', linestyle='--', alpha=0.7, linewidth=2, label='Distribution Shift')
+    ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=2, label='Distribution Shift')
     
     # Add retraining line
     ax.axvline(x=retrain_batch, color='red', linestyle=':', alpha=0.7, linewidth=2, label='SHAP Retraining')
+
+    # Calculate accuracy gaps and add bidirectional arrows
+    if ENABLE_RANDOM_BNN and retrain_batch > 0:
+        # Gap after retraining (from retraining to end)
+        if retrain_batch < len(smoothed_rand_accuracies):
+            post_gap_rand = np.mean(smoothed_rand_accuracies[retrain_batch:])
+            post_gap_shap = np.mean(smoothed_shap_accuracies[retrain_batch:])
+            post_gap = abs(post_gap_rand - post_gap_shap)
+            
+            # Arrow after retraining
+            mid_batch_post = (retrain_batch + len(smoothed_rand_accuracies)) / 2
+            y_pos_post = (post_gap_rand + post_gap_shap) / 2
+            ax.annotate('', xy=(mid_batch_post, post_gap_rand), xytext=(mid_batch_post, post_gap_shap),
+                       arrowprops=dict(arrowstyle='<->', lw=2))
+            ax.text(mid_batch_post + 5, y_pos_post, f'{post_gap*100:.1f}%', fontsize=18)
 
     ax.legend(loc='lower left', fontsize=22)
     plt.tight_layout()
@@ -586,10 +617,25 @@ def main():
     gradual_shift_acc_shap = np.mean([acc for i, acc in enumerate(shap_accuracies) if shift_start_batch <= i < max_percentage_batch])
     max_shift_acc_shap = np.mean([acc for i, acc in enumerate(shap_accuracies) if i >= max_percentage_batch])
     
+    # Calculate post-retraining metrics if retraining occurred
+    if retrain_batch > 0 and retrain_batch < len(shap_accuracies):
+        post_retrain_accuracies = [acc for i, acc in enumerate(shap_accuracies) if i >= retrain_batch]
+        post_retrain_avg_acc = np.mean(post_retrain_accuracies)
+        post_retrain_max_acc = np.max(post_retrain_accuracies)
+        avg_accuracy_increase = post_retrain_avg_acc - max_shift_acc_shap
+    else:
+        post_retrain_avg_acc = None
+        post_retrain_max_acc = None
+        avg_accuracy_increase = None
+    
     print(f"\nBNN (SHAP) Summary:")
     print(f"Pure CICIDS2017 accuracy: {pure_cic_acc_shap:.3f}")
     print(f"Gradual shift accuracy: {gradual_shift_acc_shap:.3f}")
     print(f"Max shift accuracy ({max_unsw_fraction*100:.0f}% UNSW): {max_shift_acc_shap:.3f}")
+    if post_retrain_avg_acc is not None:
+        print(f"Post-retraining average accuracy: {post_retrain_avg_acc:.3f}")
+        print(f"Post-retraining maximum accuracy: {post_retrain_max_acc:.3f}")
+        print(f"Average accuracy increase after retraining: {avg_accuracy_increase:+.3f}")
     print(f"Total performance drop: {pure_cic_acc_shap - max_shift_acc_shap:.3f}")
 
     pure_cic_acc_teacher = np.mean([acc for i, acc in enumerate(teacher_accuracies) if i < shift_start_batch])
