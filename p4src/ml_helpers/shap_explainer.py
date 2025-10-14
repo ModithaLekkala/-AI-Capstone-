@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import math
+import random 
 import numpy as np
 import pandas as pd
 import torch
@@ -47,21 +48,16 @@ class ShapExplainer:
         self.method = method.lower()
         self.verbose = verbose
 
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # Check if out_dir already contains architecture-based naming
-        if 'shap_' in os.path.basename(out_dir) and not out_dir.endswith(f'_{ts}'):
-            # Architecture-based naming, use as-is
+        if 'shap_' in os.path.basename(out_dir):
             self.out_dir = out_dir
         else:
-            # Default to p4src/results if out_dir is relative
-            if not os.path.isabs(out_dir):
-                base_dir = "p4src/results"
-                self.out_dir = os.path.join(base_dir, f"shap_{ts}")
-            else:
-                self.out_dir = os.path.join(out_dir, f"shap_{ts}")
+            self.out_dir = self.out_dir.split('/shap_')[0]+self.out_dir.split('/shap_')[1]
         os.makedirs(self.out_dir, exist_ok=True)
 
-        self.rng = np.random.RandomState(random_state)
+        np.random.seed(random_state)
+        torch.manual_seed(random_state)
+        random.seed(random_state)
+        
 
     # ------------------------ prediction wrapper ------------------------
 
@@ -98,7 +94,7 @@ class ShapExplainer:
         background_size: int = 1000,
         explain_size: int = 256,
         nsamples: str | int = "auto",
-        max_display: int = 20,
+        max_display: int = 10,
     ) -> Dict[str, Any]:
         """
         Compute SHAP on a sample of X_explain using X_background as background.
@@ -120,11 +116,14 @@ class ShapExplainer:
         -------
         dict with paths and metadata.
         """
+        # ---- ensure reproducibility ----
+        # self._set_seeds()
+        
         # ---- sample for tractability ----
         bg_size = min(background_size, len(X_background))
         ex_size = min(explain_size, len(X_explain))
-        bg_idx = self.rng.choice(len(X_background), size=bg_size, replace=False)
-        ex_idx = self.rng.choice(len(X_explain), size=ex_size, replace=False)
+        bg_idx = np.random.choice(len(X_background), size=bg_size, replace=False)
+        ex_idx = np.random.choice(len(X_explain), size=ex_size, replace=False)
         X_bg = np.ascontiguousarray(X_background[bg_idx], dtype=np.float32)
         X_ex = np.ascontiguousarray(X_explain[ex_idx], dtype=np.float32)
 
@@ -150,13 +149,20 @@ class ShapExplainer:
         if use_kernel:
             if self.verbose:
                 print("[SHAP] Using KernelExplainer (model-agnostic).")
+            # Set random state for KernelExplainer for reproducibility
             explainer = shap.KernelExplainer(self._predict, X_bg, link="logit")
+            # Pass random state to SHAP computation
+            if isinstance(nsamples, str) and nsamples == "auto":
+                nsamples = min(2 * len(X_bg) + 2048, 5000)  # Default with seed consideration
             sv = explainer.shap_values(X_ex, nsamples=nsamples)
         else:
             if self.verbose:
                 print("[SHAP] Using GradientExplainer (fast for smooth nets).")
             # GradientExplainer expects a callable returning outputs; we supply the model itself.
             self.model.eval()
+            # Set deterministic mode for gradient computation
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
             explainer = shap.GradientExplainer(self.model, torch.tensor(X_bg, dtype=torch.float32, device=self.device))
             # Returns shap.Explanation (new API) or ndarray depending on SHAP version
             with torch.no_grad():
@@ -201,34 +207,31 @@ class ShapExplainer:
         cls_for_plot = int(np.argmax(np.var(values, axis=0).sum(axis=0)))
         X_ex_df = pd.DataFrame(X_ex, columns=feature_names)
         plt.figure(figsize=(10, 8))
-        plt.rcParams.update({'font.size': 26})
+        plt.rcParams.update({
+            'font.size': 28,
+            'font.family': 'sans-serif',
+            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        })
         shap.summary_plot(values[:, :, cls_for_plot], X_ex_df, show=False, max_display=max_display)
+        plt.xlabel("SHAP value")  # Remove "(impact on model output)" from the default label
         self._savefig("summary_beeswarm.png")
 
         # 2) Overall bar chart (top-K)
         order = np.argsort(overall_importance)[::-1][:max_display]
         plt.figure(figsize=(12, 8))
-        plt.rcParams.update({'font.size': 20})
+        plt.rcParams.update({
+            'font.size': 20,
+            'font.family': 'sans-serif',
+            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        })
         plt.barh(np.array(feature_names)[order][::-1], overall_importance[order][::-1])
-        plt.title("Overall mean|SHAP| importance")
-        plt.xlabel("mean(|SHAP|)")
+        # plt.title("mean(abs(SHAP)) importance")
+        plt.xlabel("mean(abs(SHAP))")
         plt.tight_layout()
         self._savefig("bar_importance_overall.png")
 
-        # 3) Per-class bar charts
-        for c in range(C):
-            imp_c = np.mean(np.abs(values[:, :, c]), axis=0)
-            order_c = np.argsort(imp_c)[::-1][:max_display]
-            plt.figure(figsize=(12, 8))
-            plt.rcParams.update({'font.size': 20})
-            plt.barh(np.array(feature_names)[order_c][::-1], imp_c[order_c][::-1])
-            plt.title(f"mean|SHAP| importance – {class_names[c]}")
-            plt.xlabel("mean(|SHAP|)")
-            plt.tight_layout()
-            self._savefig(f"bar_importance_class{c}.png")
-
-        # ---- save top k feature indices ----
-        self._save_top_k_features(imp_df, k=126)
+        # ---- save all features ordered by importance ----
+        self._save_features_by_importance(imp_df)
         
         if self.verbose:
             print(
@@ -236,31 +239,31 @@ class ShapExplainer:
                 f" - {imp_csv}\n"
                 f" - summary_beeswarm.png\n"
                 f" - bar_importance_overall.png\n"
-                f" - bar_importance_class*.png\n"
+                # f" - bar_importance_class*.png\n"
                 f" - raw shap_values_class*.npy\n"
-                f" - top_126_feature_indices.json"
+                f" - feature_indices.json"
             )
 
         return {
             "dir": self.out_dir,
             "importance_csv": imp_csv,
-            "per_class_csvs": per_class_csvs,
+            # "per_class_csvs": per_class_csvs,
             "n_classes": C,
             "class_names": class_names,
         }
 
-    def _save_top_k_features(self, importance_df: pd.DataFrame, k: int = 126):
-        """Save indices of top k features based on SHAP importance."""
+    def _save_features_by_importance(self, importance_df: pd.DataFrame):
+        """Save all features ordered by SHAP importance."""
         import json
         
-        # Get top k features
-        top_k_features = importance_df.head(k)
+        # Use all features (already sorted by importance)
+        all_features = importance_df
         
         # Extract feature indices (assuming feature names are like 'bit_f152', 'bit_f145', etc.)
         feature_indices = []
         feature_names = []
         
-        for _, row in top_k_features.iterrows():
+        for _, row in all_features.iterrows():
             feature_name = row['feature']
             feature_names.append(feature_name)
             
@@ -274,26 +277,26 @@ class ShapExplainer:
             else:
                 print(f"Warning: Unexpected feature name format: {feature_name}")
         
-        # Save both feature indices and names
+        # Save all features ordered by importance
         indices_data = {
-            'top_k': k,
+            'total_features': len(all_features),
             'feature_indices': feature_indices,
             'feature_names': feature_names,
-            'importance_values': top_k_features['mean_abs_shap'].tolist()
+            'importance_values': all_features['mean_abs_shap'].tolist()
         }
         
-        indices_file = os.path.join(self.out_dir, f"top_{k}_feature_indices.json")
+        indices_file = os.path.join(self.out_dir, "feature_indices.json")
         with open(indices_file, 'w') as f:
             json.dump(indices_data, f, indent=2)
         
         if self.verbose:
-            print(f"Saved top {k} feature indices to: {indices_file}")
+            print(f"Saved all {len(all_features)} features ordered by importance to: {indices_file}")
             print(f"Top 5 feature indices: {feature_indices[:5]}")
         
         return indices_file
 
     @staticmethod
-    def check_existing_shap_indices(model_arch: str, dataset_name: str, k: int = 126, base_dir: str = "p4src/results") -> str:
+    def check_existing_shap_indices(model_arch: str, dataset_name: str, base_dir: str = None) -> str:
         """
         Check if SHAP feature indices already exist for the given model architecture and dataset.
         
@@ -303,34 +306,29 @@ class ShapExplainer:
             Model architecture string (e.g., "168-42-2")
         dataset_name : str
             Dataset name (e.g., "CICIDS2017")
-        k : int
-            Number of top features (default: 126)
-        base_dir : str
-            Base directory to search in
+        base_dir : str, optional
+            Base directory to search in. If None, uses relative path to results directory.
             
         Returns
         -------
         str or None
             Path to existing SHAP indices file if found, None otherwise
         """
-        # Try architecture-based naming first
+        # Set base directory relative to this script's location
+        if base_dir is None:
+            # Get the directory of this script and navigate to shap folder
+            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up from ml_helpers to p4src
+            base_dir = os.path.join(script_dir, "shaps")
+        
+        # Create the specific SHAP directory name
         shap_dir_name = f"shap_{model_arch.replace('_', '-')}_{dataset_name.lower()}"
         shap_path = os.path.join(base_dir, shap_dir_name)
         
+        # Only check the specific directory, no fallback
         if os.path.exists(shap_path):
-            indices_file = os.path.join(shap_path, f"top_{k}_feature_indices.json")
+            indices_file = os.path.join(shap_path, "feature_indices.json")
             if os.path.exists(indices_file):
                 return indices_file
-        
-        # Fallback: check for any timestamp-based SHAP directories
-        if os.path.exists(base_dir):
-            for item in os.listdir(base_dir):
-                if item.startswith('shap_') and dataset_name.lower() in item.lower():
-                    potential_path = os.path.join(base_dir, item)
-                    if os.path.isdir(potential_path):
-                        indices_file = os.path.join(potential_path, f"top_{k}_feature_indices.json")
-                        if os.path.exists(indices_file):
-                            return indices_file
         
         return None
     
@@ -403,22 +401,24 @@ class ShapExplainer:
         trainer,                       # your Trainer instance
         out_dir: Optional[str] = None,
         use_eval: bool = True,         # explain on eval/test if available, else on train
-        background_size: int = 128,
-        explain_size: int = 500,
+        background_size: Optional[int] = None,  # Will use trainer config if None
+        explain_size: Optional[int] = None,     # Will use trainer config if None
         nsamples: str | int = "auto",
-        max_display: int = 20,
+        max_display: int = 10,
         predict_mode: str = "proba",
         method: str = "kernel",        # or "auto"
         random_state: int = 42,
         feature_names: Optional[Sequence[str]] = None,
         class_names: Optional[Sequence[str]] = None,
         verbose: bool = True,
-        force_recompute: bool = False,  # Force recomputation even if indices exist
-        k_features: int = 126,          # Number of top features to save
-    ) -> Dict[str, Any]:
+        force_recompute: bool = True,  # Force recomputation even if indices exist
+    ) -> tuple[Dict[str, Any], str]:
         """
         One-liner to compute SHAP using fields from your Trainer.
         Now checks for existing feature indices before computing.
+        Saves all features ordered by importance (not just top k).
+        
+        Reproducibility: Uses random_state for deterministic sampling and SHAP computation.
 
         Expects:
           - trainer.model (trained)
@@ -432,11 +432,22 @@ class ShapExplainer:
         device = trainer.device
         model_arch = getattr(trainer, 'model_arch', 'unknown')
         dataset_name = getattr(trainer, 'dataset', 'dataset')
+        model_name = trainer.model_name
+        
+        # Use trainer's SHAP configuration as defaults if parameters not specified
+        background_size = background_size or getattr(trainer, 'shap_background_size', 256)
+        explain_size = explain_size or getattr(trainer, 'shap_explain_size', 500)
+        
+        if verbose:
+            print(f"SHAP Configuration:")
+            print(f"  Background size: {background_size}")
+            print(f"  Explain size: {explain_size}")
+            print(f"  Random state: {random_state}")
         
         # Check for existing SHAP indices unless force recompute
         if not force_recompute:
             existing_indices_file = ShapExplainer.check_existing_shap_indices(
-                model_arch, dataset_name, k_features
+                model_arch, dataset_name
             )
             if existing_indices_file:
                 if verbose:
@@ -456,8 +467,10 @@ class ShapExplainer:
 
         # Set up output directory with architecture-based naming
         if out_dir is None:
-            base_dir = "p4src/results"
-            shap_dir_name = f"shap_{model_arch.replace('_', '-')}_{dataset_name.lower()}"
+            # Get the directory of this script and navigate to shap folder
+            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up from ml_helpers to p4src
+            base_dir = os.path.join(script_dir, "shaps")
+            shap_dir_name = f"shap_{model_name}_{model_arch.replace('_', '-')}_{dataset_name.lower()}"
             out_dir = os.path.join(base_dir, shap_dir_name)
 
         # pick arrays
@@ -482,7 +495,7 @@ class ShapExplainer:
                 class_names = [f"class_{i}" for i in range(trainer.args.num_classes)]
 
         if verbose:
-            print(f"Computing SHAP for architecture: {model_arch}")
+            print(f"\n Computing SHAP for architecture: {model_arch}")
             print(f"Results will be saved to: {out_dir}")
 
         expl = ShapExplainer(
@@ -507,9 +520,9 @@ class ShapExplainer:
         )
         
         # Add indices file path to result
-        indices_file = os.path.join(out_dir, f"top_{k_features}_feature_indices.json")
+        indices_file = os.path.join(out_dir, "feature_indices.json")
         if os.path.exists(indices_file):
             result["indices_file"] = indices_file
             result["indices_data"] = ShapExplainer.load_shap_indices(indices_file)
         
-        return result
+        return result, indices_file

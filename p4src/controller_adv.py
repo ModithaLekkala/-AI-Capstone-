@@ -82,14 +82,15 @@ def process_cpu_packet(pkt):
         print('Load features into BNN input registers:')
 
         # Make sixteen 4-digit substrings:
-        if args.model == 'wide':
+        if args.arch == 'wide':
             bnn_input = bnn_input[:32] #DEBUG PURPOSE, TO REMOVE IN THE END
             bnn_input = '{:0128b}'.format(int(bnn_input, 16))
-            # input_chunks = [bnn_input[i:i+16] for i in range(0, 128, 16)]
-        else:
-            bnn_input = bnn_input[:32] #DEBUG PURPOSE, TO REMOVE IN THE END
-            bnn_input = '{:0126b}'.format(int(bnn_input, 16))
-            # input_chunks = [ f'00{bnn_input[i : i + 14]}' for i in range(0, 126, 14) ]
+        elif args.arch == 'dense':
+            bnn_input = bnn_input[:33] #DEBUG PURPOSE, TO REMOVE IN THE END
+            bnn_input = '{:0140b}'.format(int(bnn_input, 16))
+        elif args.arch == 'tiny':
+            bnn_input = bnn_input[:25] #DEBUG PURPOSE, TO REMOVE IN THE END
+            bnn_input = '{:098b}'.format(int(bnn_input, 16))
         # print(f'Input chunks: {input_chunks}')
 
         loaded_offset = bfrt_bnn.load_bnn_input_reg(bnn_input)
@@ -139,18 +140,18 @@ def handle_bnn_response(resp):
         expected = mlp.do_inference(int(prev_input , 16), w_mlp, verbose=True)
         # print(f'Expected output for previous input: {expected}')
 
-        if args.model == 'wide':
+        if args.arch == 'wide':
             conf_score = bnn_resp.l1_out
             obtained = bnn_resp.l2_out
             print(f'obtained: l0: {resp[BNN].l0_out} l1: {conf_score} l2: {obtained}')
 
         else:
-            if args.model == 'bnn_dense':
+            if args.arch == 'dense':
                 conf_score = handle_conf_score([bnn_resp.l0_out_1, bnn_resp.l0_out_2, bnn_resp.l0_out_3, bnn_resp.l0_out_4, bnn_resp.l0_out_5, bnn_resp.l0_out_6])
-            elif args.model == 'tiny':
+            elif args.arch == 'tiny':
                 conf_score = handle_conf_score([bnn_resp.l0_out_1, bnn_resp.l0_out_2, bnn_resp.l0_out_3, bnn_resp.l0_out_4])
             else:
-                raise ValueError(f"Unknown model type: {args.model}")
+                raise ValueError(f"Unknown model type: {args.arch}")
             obtained = bnn_resp.l1_out
             print(f'obtained: l0: {hex(int(conf_score, 2))} l1: {obtained}')
 
@@ -195,7 +196,7 @@ def parse_args(args):
     parser = argparse.ArgumentParser(description="UNSW_NB15 Training")
     parser.add_argument("--arch", default='dense', type=str, help="One between (tiny, dense, wide).")
     parser.add_argument("--dataset-name", type=none_or_str, default='UNSW-NB15-custom', help="Dataset")
-    parser.add_argument("--compute-shap", action='store_true', help="Compute SHAP and create filtered dataset")
+    parser.add_argument("--results-dir", type=str, default='p4src/results', help="Directory to save results")
 
     parsed_args = parser.parse_args(args)
 
@@ -213,52 +214,40 @@ def main():
         raise ValueError(f"Unknown model type: {args.arch}")
     bind_layers(Ether, BNN, type=BNN_TYPE_ETHER)
 
-    # Read COMPUTE_SHAP setting from trainer config
-    trainer_cfg = get_cfg('trainer')
-    compute_shap = trainer_cfg.getboolean('TRAINING', 'COMPUTE_SHAP')
+    global bfrt_bnn
+    bfrt_bnn = BNNPipeline(args.arch, bfrt=bfrt, input_length=nn[0])
+    if args.arch == 'dense':
+        bfrt_bnn.load_pop_tb()
+        bfrt_bnn.load_weights_tb(l1_w, l2_w)
+
+    # TODO: implement tiny weight loading
+    # TODO: implement wide weight loading
     
-    if compute_shap:
-        print("COMPUTE_SHAP=True: Will create/use SHAP-filtered dataset")
-    else:
-        print("COMPUTE_SHAP=False: Using original dataset")
+    print("→ BNN initialization complete.\n")
 
-    # Train BNN model (SHAP logic is handled inside trainer)
-    bnn_trainer = Trainer(model_name='bnn', dataset_name=args.dataset_name, arch=args.arch)
-    bnn_trainer.train_model()
+    stop_event = Event()
+    t_cpu = Thread(target=cpu_listener, args=(stop_event,), daemon=True)
+    t_bnn = Thread(target=bnn_listener, args=(stop_event,), daemon=True)
 
-    # global bfrt_bnn
-    # bfrt_bnn = BNNPipeline(args.model, bfrt=bfrt)
-    # if args.model == 'dense':
-    #     bfrt_bnn.load_pop_tb()
-    #     bfrt_bnn.load_weights_tb(l1_w, l2_w)
+    t_cpu.start()
+    t_bnn.start()
 
-    # # TODO: implement tiny weight loading
-    # # TODO: implement wide weight loading
-    # print("→ BNN initialization complete.\n")
+    print("[Main] Threads started. Press Ctrl+C to stop.")
+    try:
+        # Keep the main thread alive while workers run
+        while True:
+            t_cpu.join(timeout=60)
+            t_bnn.join(timeout=60)
+            if not t_cpu.is_alive() or not t_bnn.is_alive():
+                break
+    except KeyboardInterrupt:
+        print("\n[Main] Stopping…")
+        stop_event.set()
+        t_cpu.join()
+        t_bnn.join()
 
-    # stop_event = Event()
-    # t_cpu = Thread(target=cpu_listener, args=(stop_event,), daemon=True)
-    # t_bnn = Thread(target=bnn_listener, args=(stop_event,), daemon=True)
-
-    # t_cpu.start()
-    # t_bnn.start()
-
-    # print("[Main] Threads started. Press Ctrl+C to stop.")
-    # try:
-    #     # Keep the main thread alive while workers run
-    #     while True:
-    #         t_cpu.join(timeout=60)
-    #         t_bnn.join(timeout=60)
-    #         if not t_cpu.is_alive() or not t_bnn.is_alive():
-    #             break
-    # except KeyboardInterrupt:
-    #     print("\n[Main] Stopping…")
-    #     stop_event.set()
-    #     t_cpu.join()
-    #     t_bnn.join()
-
-    # json.dump(bfrt_bnn.inference_output, open(f'inference_output_{args.model}.json', 'w'), indent=4)
-    # print("[Main] All listeners stopped. Bye.")
+    json.dump(bfrt_bnn.inference_output, open(f'inference_output_{args.arch}.json', 'w'), indent=4)
+    print("[Main] All listeners stopped. Bye.")
 
 if __name__ == "__main__":
     main()

@@ -1,8 +1,6 @@
-import os
 import numpy as np
 import pandas as pd
 
-from configparser import ConfigParser
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import auc
 from sklearn.metrics import confusion_matrix
@@ -10,10 +8,6 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import roc_curve
-
-from pathlib import Path
-
-import warnings
 
 def round_to_nearest(x, n_blocks=4):
     blocks_bound = 1/n_blocks
@@ -43,56 +37,11 @@ def data_preprocess(data: pd.DataFrame, spec_dict, binarization=False):
         if data_num[feature].max()>10*data_num[feature].median() and data_num[feature].max()>10 :
             data[feature] = np.where(data[feature]<data[feature].quantile(0.95), data[feature], data[feature].quantile(0.95))
 
-    # unskew data applying log
-    # data_num = data.select_dtypes(include=[np.number])
-    # for feature in data_num.columns:
-    #     if data_num[feature].nunique()>continuous_features_values:
-    #         if data_num[feature].min()==0:
-    #             data[feature] = np.log(data[feature]+1)
-    #         else:
-    #             data[feature] = np.log(data[feature])
-
-
-    # one hot encoding of categorical features
-    # print(f'Feature count before one-hot encoding: {samples.shape[1]}')
-    # one_hot = pd.get_dummies(data=samples, columns=cols_cat)
-    # old_samples = samples
-    # print(f'Feature count after one-hot encoding: {one_hot.shape[1]}')
-    # print(f'Added   features: {one_hot[one_hot.columns.difference(old_samples.columns)].columns.to_list()}')
-    # print(f'Removed features: {old_samples[old_samples.columns.difference(one_hot.columns)].columns.to_list()}')
-    # samples=one_hot
-
     # from bool features to int
     bool_cols = data.select_dtypes(include=bool).columns
     if(len(bool_cols) > 0):
         data[bool_cols] = data[bool_cols].astype(int)
 
-    # standardize int features
-    # if not binarization:
-        # standardizer = StandardScaler()
-        # data_int = samples.select_dtypes(include=np.number)
-        # samples[data_int.columns] = standardizer.fit_transform(data_int)
-        
-        # normalize float features
-        # normalizer = Normalizer()
-        # data_float = samples.select_dtypes(include=np.number)
-        # samples[data_float.columns] = normalizer.fit_transform(data_float)
-
-        # normalizer = MinMaxScaler()
-        # data_float = samples.select_dtypes(include=np.number)
-        # samples[data_float.columns] = normalizer.fit_transform(data_float)
-    
-    # X = torch.tensor(samples.values, dtype=torch.float32)
-    # Y = torch.tensor(labels.values, dtype=torch.long)
-
-    # if(binarization):
-    #     bin_tmp, bin_desc = data_binarization(samples.astype('int'))
-    #     X_bin = torch.tensor(bin_tmp, dtype=torch.float32)
-    # else:
-    #     X_bin = bin_desc = -1
-        
-    
-    # return samples, labels.values, og_samples
     return data, og_samples
 
 
@@ -131,23 +80,6 @@ def data_binarization(samples: pd.DataFrame, selected_columns=None):
 
     return Xbin
 
-def get_cfg(name='mbnn'):
-    cfg = ConfigParser()
-    # current_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join('/home/sgeraci/slu/inet-hynn/p4src', 'configs', name.lower() + '.ini')
-    assert os.path.exists(config_path), f"{config_path} not found."
-    cfg.read(config_path)
-    
-    return cfg
-
-def suppress_warnings():
-    # Suppress brevitas Warning
-    warnings.filterwarnings(
-        "ignore",
-        message="Defining your `__torch_function__` as a plain method is deprecated",
-        category=UserWarning,
-    )
-
 def metrics_binary_dataset(y_test, y_pred, y_score, is_bnn=False):
     
     if is_bnn:
@@ -155,9 +87,9 @@ def metrics_binary_dataset(y_test, y_pred, y_score, is_bnn=False):
         y_test = np.argmax(y_test, axis=1)
         
     a = accuracy_score(y_test, y_pred)
-    p = precision_score(y_test, y_pred)
-    r = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred, average='macro')
+    p = precision_score(y_test, y_pred, average='binary')
+    r = recall_score(y_test, y_pred, average='binary')
+    f1 = f1_score(y_test, y_pred, average='binary')
 
     tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
     
@@ -172,9 +104,16 @@ def metrics_binary_dataset(y_test, y_pred, y_score, is_bnn=False):
 
     return a, p, r, tpr, fpr, fnr, f1, roc_auc
 
-def get_file_from_keyword(directory, keyword):
-    path = Path(directory)
-    for file in path.iterdir():
-        if file.is_file() and keyword in file.name:
-            return file
-    return None
+def softmax(x):
+    return np.exp(x) / np.sum(np.exp(x), axis=0)
+
+def softmax_temp(x, temp=1.0):
+    """Compute softmax values for each sets of scores in x with temperature scaling."""
+    x = x / temp
+    e_x = np.exp(x - np.max(x))  # Subtract max for numerical stability
+    return e_x / e_x.sum()
+
+def multiple_temp_softmax(x, temps=[1.0, 2.0, 3.0]):
+    """Compute softmax values for each sets of scores in x with multiple temperature scaling."""
+    softmax_results = [softmax_temp(x, temp) for temp in temps]
+    return softmax_results

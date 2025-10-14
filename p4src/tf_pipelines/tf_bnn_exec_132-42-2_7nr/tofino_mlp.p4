@@ -5,14 +5,12 @@
 #include "common/headers.p4"
 #include "common/util.p4"
 
-#define WIDTH_IX_L0 8 /* (l0 weights width. / 16) -1  */
+#define WIDTH_IX_L0 9 /* (l0 weights width. / 16) -1  */
 #define WIDTH_IX_L1 2
 #define HEIGTH_IX_L0 5 /* (l0 neurons no. / 16) -1  */
 #define HEIGTH_IX_L1 0
-#define INPUT_LEN 128
-#define L0_WEIGHT_TB_SIZE 126
-#define L1_WEIGHT_TB_SIZE 6
 #define LAST_LAYER_NO 1 /* number of layers -1 */
+#define INPUT_LAYER_THRESHOLD 0x42
 
 #define POP_ACCUMULATE(y)\
     action pop_act##y(popcount_t popvalue) { hdr.bnn_pkt.pop##y## = hdr.bnn_pkt.pop##y## + popvalue;}\
@@ -134,7 +132,6 @@ control BnnIngress(
             hdr.bnn_pkt.pop_recirc: exact;
             hdr.bnn_pkt.nrs_recirc: exact;
         }
-        size = L0_WEIGHT_TB_SIZE;
     }
 
     table l1_weights{
@@ -143,7 +140,6 @@ control BnnIngress(
             hdr.bnn_pkt.pop_recirc: exact;
             hdr.bnn_pkt.nrs_recirc: exact;
         }
-        size = L1_WEIGHT_TB_SIZE;
     }
 
     action pop_recirc() {
@@ -234,17 +230,17 @@ control BnnIngress(
         /* ---- PARTIAL AND FINAL INFERENCE RESULT LOGIC FOR EACH LAYER ---- */
         if(hdr.bnn_pkt.layer_no == 0 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L0) {
             if (hdr.bnn_pkt.nrs_recirc == 0) {
-                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_1, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_1, INPUT_LAYER_THRESHOLD);
             } else if (hdr.bnn_pkt.nrs_recirc == 1) {
-                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_2, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_2, INPUT_LAYER_THRESHOLD);
             } else if (hdr.bnn_pkt.nrs_recirc == 2) {
-                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_3, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_3, INPUT_LAYER_THRESHOLD);
             } else if (hdr.bnn_pkt.nrs_recirc == 3) {
-                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_4, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_4, INPUT_LAYER_THRESHOLD);
             } else if (hdr.bnn_pkt.nrs_recirc == 4) {
-                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_5, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_5, INPUT_LAYER_THRESHOLD);
             } else {
-                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_6, 0x3F);
+                WRITE_SIGN(0,1,2,3,4,5,6,   l0_out_6, INPUT_LAYER_THRESHOLD);
             } 
         } 
         else if(hdr.bnn_pkt.layer_no == 1 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L1) {

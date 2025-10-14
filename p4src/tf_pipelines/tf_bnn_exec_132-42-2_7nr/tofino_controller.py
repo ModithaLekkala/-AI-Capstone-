@@ -174,7 +174,7 @@ print("→ Done loading all 42-bit weights into l1_weights (two-key table).\n")
 #  5) Finally, split a single 256-bit “hex_input” into sixteen 16-bit chunks
 #     and write them into bnn_input_reg[0..15].
 # -------------------------------------------------
-assert len(hex_input) == 126, "hex_input must be exactly 126 bin digits"
+assert len(hex_input) == 133, "hex_input must be exactly 126 bin digits"
 ix=0
 for hex_input in hex_inputs:
     # Make sixteen 4-digit substrings:
