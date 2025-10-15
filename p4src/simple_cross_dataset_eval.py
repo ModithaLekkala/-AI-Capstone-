@@ -218,22 +218,22 @@ def analyze_confidence_distribution(bnn_trainer: SimpleTrainer, X_val_shaped, Y_
 
 def main():
     # Configuration
-    ARCH = 'wide'
+    ARCH = 'tiny'
     # ARCH = 'dense'
 
     max_unsw_fraction = 0.4
     DATASET_SWITCH_START = 20
     DATASET_SWITCH_END = 40
     #CRITICAL_SAMPLES_WINDOW = 70000
-    CRITICAL_SAMPLES_WINDOW = 15000
+    CRITICAL_SAMPLES_WINDOW = 30000
 
-    ENABLE_RANDOM_BNN = False  # Killswitch for random BNN model
+    ENABLE_RANDOM_BNN = True  # Killswitch for random BNN model
 
     # Load datasets
     print("Loading CICIDS2017...")
     X_cic, Y_cic = load_dataset('CICIDS2017')
     X_cic_train, X_cic_test, Y_cic_train, Y_cic_test = train_test_split(
-        X_cic, Y_cic, train_size=0.7, random_state=42, stratify=Y_cic)
+        X_cic, Y_cic, train_size=0.8, random_state=42, stratify=Y_cic)
     
     # Create validation set from CICIDS2017
     X_cic_test, X_cic_val, Y_cic_test, Y_cic_val = train_test_split(
@@ -348,8 +348,8 @@ def main():
     retraining_completed = False
 
     # Prepare evaluation batches
-    batch_size = 1750
-    n_batches = 200
+    batch_size = 1000
+    n_batches = 170
     
     # distribution shift starting point
     shift_start_batch = DATASET_SWITCH_START
@@ -479,7 +479,7 @@ def main():
             
             # Take 100,000 samples from original training data
             retrain_samples = 95000
-            #retrain_samples = 70000
+            # retrain_samples = 70000
             if len(X_tr) >= retrain_samples:
                 retrain_indices = np.random.choice(len(X_tr), retrain_samples, replace=False)
                 retrain_og_X = X_tr[retrain_indices]
@@ -506,7 +506,7 @@ def main():
             print("Creating new SHAP BNN trainer instance for retraining...")
             retrained_bnn_shap = SimpleTrainer('tf_bnn_shap_retrained', ARCH, 'cpu')
             retrained_bnn_shap.reset_model()
-            retrained_bnn_shap.epochs += 50
+            retrained_bnn_shap.epochs += 40
             retrained_bnn_shap.train(retrain_X[:, shap_feat_idx], retrain_Y, verbose=True)
 
         # Evaluate SHAP BNN (use retrained model if available)
@@ -551,7 +551,7 @@ def main():
         batch_nums.append(i + 1)
     
     plt.rcParams.update({
-        'font.size': 24,
+        'font.size': 30,
         'font.family': 'sans-serif',
         'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
     })
@@ -572,10 +572,10 @@ def main():
 
     # Vertical line at first mixed batch (1-based index)
     first_mixed_batch = shift_start_batch + 1
-    ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=2, label='Distribution Shift')
+    ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=3, label='Distribution Shift')
     
     # Add retraining line
-    ax.axvline(x=retrain_batch, color='red', linestyle=':', alpha=0.7, linewidth=2, label='SHAP Retraining')
+    ax.axvline(x=retrain_batch, color='red', linestyle=':', alpha=0.7, linewidth=3, label='SHAP Retraining')
 
     # Calculate accuracy gaps and add bidirectional arrows
     if ENABLE_RANDOM_BNN and retrain_batch > 0:
@@ -590,9 +590,9 @@ def main():
             y_pos_post = (post_gap_rand + post_gap_shap) / 2
             ax.annotate('', xy=(mid_batch_post, post_gap_rand), xytext=(mid_batch_post, post_gap_shap),
                        arrowprops=dict(arrowstyle='<->', lw=2))
-            ax.text(mid_batch_post + 5, y_pos_post, f'{post_gap*100:.1f}%', fontsize=18)
+            ax.text(mid_batch_post + 5, y_pos_post, f'{post_gap*100:.1f}%', fontsize=26)
 
-    ax.legend(loc='lower left', fontsize=22)
+    ax.legend(loc='lower left', fontsize=26, ncol=2)
     plt.tight_layout()
     
     out_path = f'bnn_gradual_shift_eval_to_{max_unsw_fraction:.2f}.png'
