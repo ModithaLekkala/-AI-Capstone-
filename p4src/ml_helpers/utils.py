@@ -1,6 +1,8 @@
+import os
 import numpy as np
 import pandas as pd
 
+from configparser import ConfigParser
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import auc
 from sklearn.metrics import confusion_matrix
@@ -8,6 +10,10 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import roc_curve
+
+from pathlib import Path
+
+import warnings
 
 def round_to_nearest(x, n_blocks=4):
     blocks_bound = 1/n_blocks
@@ -80,6 +86,23 @@ def data_binarization(samples: pd.DataFrame, selected_columns=None):
 
     return Xbin
 
+def get_cfg(name='mbnn'):
+    cfg = ConfigParser()
+    # current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join('/home/sgeraci/inet-hynn/p4src', 'configs', name.lower() + '.ini')
+    assert os.path.exists(config_path), f"{config_path} not found."
+    cfg.read(config_path)
+    
+    return cfg
+
+def suppress_warnings():
+    # Suppress brevitas Warning
+    warnings.filterwarnings(
+        "ignore",
+        message="Defining your `__torch_function__` as a plain method is deprecated",
+        category=UserWarning,
+    )
+
 def metrics_binary_dataset(y_test, y_pred, y_score, is_bnn=False):
     
     if is_bnn:
@@ -103,6 +126,13 @@ def metrics_binary_dataset(y_test, y_pred, y_score, is_bnn=False):
     roc_auc = auc(fpr_, tpr_)
 
     return a, p, r, tpr, fpr, fnr, f1, roc_auc
+
+def get_file_from_keyword(directory, keyword):
+    path = Path(directory)
+    for file in path.iterdir():
+        if file.is_file() and keyword in file.name:
+            return file
+    return None
 
 def softmax(x):
     return np.exp(x) / np.sum(np.exp(x), axis=0)

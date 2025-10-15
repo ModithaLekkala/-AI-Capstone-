@@ -13,7 +13,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import confusion_matrix
 import copy
 
-from ..helpers.utils import get_cfg, suppress_warnings
+from .utils import suppress_warnings, get_cfg
 from .losses import SqrHingeLoss
 from .models import smaller, deeper
 from .shap_explainer import ShapExplainer
