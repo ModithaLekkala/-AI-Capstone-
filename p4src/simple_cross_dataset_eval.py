@@ -137,7 +137,7 @@ def analyze_confidence_distribution(bnn_trainer: SimpleTrainer, X_val_shaped, Y_
     
     # Create plot matching trainer.py style exactly
     plt.rcParams.update({
-        'font.size': 20,
+        'font.size': 30,
         'font.family': 'sans-serif',
         'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
     })
@@ -551,7 +551,7 @@ def main():
         batch_nums.append(i + 1)
     
     plt.rcParams.update({
-        'font.size': 30,
+        'font.size': 34,
         'font.family': 'sans-serif',
         'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
     })
@@ -590,9 +590,9 @@ def main():
             y_pos_post = (post_gap_rand + post_gap_shap) / 2
             ax.annotate('', xy=(mid_batch_post, post_gap_rand), xytext=(mid_batch_post, post_gap_shap),
                        arrowprops=dict(arrowstyle='<->', lw=2))
-            ax.text(mid_batch_post + 5, y_pos_post, f'{post_gap*100:.1f}%', fontsize=26)
+            ax.text(mid_batch_post + 5, y_pos_post, f'{post_gap*100:.1f}%', fontsize=30)
 
-    ax.legend(loc='lower left', fontsize=26, ncol=2)
+    ax.legend(loc='lower left', fontsize=30, ncol=2)
     plt.tight_layout()
     
     out_path = f'bnn_gradual_shift_eval_to_{max_unsw_fraction:.2f}.png'
