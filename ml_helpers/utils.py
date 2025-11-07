@@ -89,7 +89,7 @@ def data_binarization(samples: pd.DataFrame, selected_columns=None):
 def get_cfg(name='mbnn'):
     cfg = ConfigParser()
     # current_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join('/home/sgeraci/inet-hynn/p4src', 'configs', name.lower() + '.ini')
+    config_path = os.path.join('configs', name.lower() + '.ini')
     assert os.path.exists(config_path), f"{config_path} not found."
     cfg.read(config_path)
     

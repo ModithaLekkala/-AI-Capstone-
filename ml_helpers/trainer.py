@@ -219,9 +219,10 @@ class Trainer():
                 # Filter to only binarizable features for binarization
                 x_binarizable = x_tmp[[col for col in x_tmp.columns if col in binarizable_features]]
                 Xbin = data_binarization(x_binarizable.astype('int'), selected_columns=list(x_binarizable.columns))
-
+                Xbin=pd.DataFrame(Xbin)
+                
                 print(f"Binarized dataset doesn't exists, saving it in {bin_ds} for future references... ", end='')
-                pd.concat([pd.DataFrame(Xbin), Y], axis=1).to_csv(bin_ds, index=False)
+                pd.concat([Xbin, Y], axis=1).to_csv(bin_ds, index=False)
                 print('saved.')
             else:
                 print(f'{self.dataset} binarized dataset exists, load it...', end='')
