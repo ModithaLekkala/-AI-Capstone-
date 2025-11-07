@@ -204,6 +204,8 @@ pip-selfcheck.json
 .history
 .ionide
 
+.DS_Store
+
 p4src/build
 topo.json
 topology.json
