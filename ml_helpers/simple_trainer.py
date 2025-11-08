@@ -26,7 +26,7 @@ class SimpleTrainer:
     Simplified trainer that operates directly on X, Y data without dataset initialization complexity.
     """
     
-    def __init__(self, model_name, arch, device='cpu'):
+    def __init__(self, model_name, model_arch, device='cpu'):
         """
         Initialize SimpleTrainer with model configuration.
         
@@ -36,11 +36,11 @@ class SimpleTrainer:
             device (str): Device to use ('cpu', 'cuda')
         """
         self.model_name = model_name
-        self.arch = arch
+        self.arch = model_arch
         self.device = device
         
         # Load configuration
-        self.cfg = get_cfg(arch)
+        self.cfg = get_cfg(model_arch)
         trainer_cfg = get_cfg('trainer')
         
         # Model configuration
@@ -57,7 +57,6 @@ class SimpleTrainer:
         self.scheduler_type = trainer_cfg.get('TRAINING', 'SCHEDULER')
         self.loss = trainer_cfg.get('TRAINING', 'LOSS')
         self.random_seed = trainer_cfg.getint('GENERAL', 'RANDOM_SEED', fallback=42)
-
         torch.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
@@ -75,8 +74,8 @@ class SimpleTrainer:
         self.shap_explain_size = trainer_cfg.getint('SHAP', 'EXPLAIN_SIZE', fallback=32)
         
         # Results configuration
-        self.results_dir = f'results/{self.model_name}_{arch}'
-        os.makedirs(self.results_dir, exist_ok=True)
+        self.results_dir = f'results/{self.model_name}_{model_arch}'
+        # os.makedirs(self.results_dir, exist_ok=True)
         
         # Initialize MetricsManager for plotting
         hidden_nrs = ast.literal_eval(self.cfg.get('MODEL', 'OUT_FEATURES'))[0]  # First hidden layer size

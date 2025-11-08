@@ -6,7 +6,7 @@ This work is in collaboration with:
 - Lorenzo Pappone and Flavio Esposito from Saint Louis University, Missouri, USA
 
 ## Dependencies
-- Download CICIDS2017 and CIC-UNSW-NB15 datasets
+- Download CICIDS2017 and CIC_UNSW_NB15 datasets
 - Supported Python versions: 3.8, 3.10
 - Tofino SDE needs to be installed.
 - Run: `sudo python -m pip install --upgrade --no-cache-dir --target $SDE_INSTALL/lib/python<pyversion>/site-packages -r requirement.txt`

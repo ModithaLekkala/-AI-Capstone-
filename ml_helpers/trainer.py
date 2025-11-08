@@ -26,7 +26,7 @@ from .metrics import MetricsManager
 
 import json
 
-DATASET_PATH = '/home/sgeraci/Desktop/datasets'
+DATASET_PATH = 'data'
 
 TRAIN = 'train'
 VALID = 'valid'

@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Simple BNN cross-dataset evaluation script with gradual distribution shift
-"""
 
 import os
 import numpy as np
@@ -11,32 +8,35 @@ import torch
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from ml_helpers.simple_trainer import SimpleTrainer
-from ml_helpers.utils import get_cfg, multiple_temp_softmax, softmax_temp
+from ml_helpers.utils import get_cfg, softmax_temp
 import random
+import argparse
 
-# Set seeds for reproducibility
 np.random.seed(42)
 torch.manual_seed(42)
 random.seed(42)
+
+MAX_UNSW_FRACTION = 0.4
+DATASET_SWITCH_START = 20
+DATASET_SWITCH_END = 40
+CRITICAL_SAMPLES_WINDOW = 30000
+BATCH_SIZE = 1000
+N_BATCHES = 170
+RES_DIR = ''
+
 
 def load_dataset(dataset_name):
     """Load dataset directly"""
     dataset_cfg = get_cfg(dataset_name)
     dataset_path = dataset_cfg.get('DATASET', 'PATH')
     dataset_dir = os.path.dirname(dataset_path)
+    bin_dataset_path = f'{dataset_dir}/bin_{dataset_cfg.get("DATASET", "NAME")}_168b.csv'
     
-    # Load binarized dataset
-    bin_paths = [
-        f'{dataset_dir}/bin_{dataset_cfg.get("DATASET", "NAME")}_168b',
-        f'{dataset_dir}/bin_{dataset_cfg.get("DATASET", "NAME")}_168b.csv'
-    ]
-    
-    for bin_path in bin_paths:
-        if os.path.exists(bin_path):
-            data = pd.read_csv(bin_path)
-            X = data.iloc[:, :-1].values
-            Y = data.iloc[:, -1].values
-            return X, Y
+    if os.path.exists(bin_dataset_path):
+        data = pd.read_csv(bin_dataset_path)
+        X = data.iloc[:, :-1].values
+        Y = data.iloc[:, -1].values
+        return X, Y
     
     raise FileNotFoundError(f"Dataset {dataset_name} not found")
 
@@ -68,8 +68,6 @@ def get_confidence_safe(trainer, x):
 
 def analyze_confidence_distribution(bnn_trainer: SimpleTrainer, X_val_shaped, Y_val):
     """Analyze confidence distribution matching trainer.py plot_confidence_histogram style"""
-    import torch
-    from scipy.stats import norm
     
     print(f"Computing confidence scores for {len(X_val_shaped)} validation samples...")
     
@@ -135,68 +133,6 @@ def analyze_confidence_distribution(bnn_trainer: SimpleTrainer, X_val_shaped, Y_
     mean_weighted_prob = np.percentile(weighted_prob, 80)
     confident_scores = weighted_prob[weighted_prob >= mean_weighted_prob]
     
-    # Create plot matching trainer.py style exactly
-    plt.rcParams.update({
-        'font.size': 30,
-        'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
-    })
-    
-    fig, ax1 = plt.subplots(figsize=(14, 8))
-    
-    # Primary y-axis: Weighted accuracy bars (accuracy × percentage)
-    bars = ax1.bar(unique_confs, weighted_values_to_plot, width=0.6, alpha=0.7, 
-                  color='green', edgecolor='black', capsize=5)
-    
-    # Add hatches to confident score bars
-    for i, prob in enumerate(weighted_prob):
-        if prob in confident_scores:
-            bars[i].set_hatch('ooo')
-    
-    ax1.set_xlabel('Confidence Score')
-    ax1.set_ylabel('P(Correct|Confidence) × Sample %', color='black')
-    max_weighted = max(weighted_values_to_plot) if len(weighted_values_to_plot) > 0 else 1
-    ax1.set_ylim([0, max_weighted * 1.2])
-    ax1.tick_params(axis='y', labelcolor='black')
-    
-    # Fit Gaussian model to confidence scores
-    confidence_data_for_fitting = []
-    for conf, count in confidence_counts.items():
-        confidence_data_for_fitting.extend([conf] * count)
-    
-    if len(confidence_data_for_fitting) > 0:
-        # Fit Gaussian distribution
-        mu, sigma = norm.fit(confidence_data_for_fitting)
-        
-        # Create smooth curve for overlay
-        x_smooth = np.linspace(min(unique_confs), max(unique_confs), 200)
-        gaussian_curve = norm.pdf(x_smooth, mu, sigma)
-        
-        # Scale Gaussian curve to match the weighted values scale
-        scale_factor = max_weighted * 0.8  # Scale to 80% of max for visibility
-        gaussian_curve_scaled = gaussian_curve * scale_factor / max(gaussian_curve)
-        
-        # Plot Gaussian curve overlay
-        ax1.plot(x_smooth, gaussian_curve_scaled, 'b-', linewidth=3, 
-                label='Gaussian Fit', alpha=0.8)
-        
-        # Add legend
-        ax1.legend(loc='upper right')
-        
-        print(f'Gaussian fit: μ = {mu:.4f}, σ = {sigma:.4f}')
-    
-    # Style the plot borders
-    for spine in ax1.spines.values():
-        spine.set_edgecolor('black')
-        spine.set_linewidth(0.7)
-    
-    plt.tight_layout()
-    confidence_plot_path = f'bnn_gradual_shift_confidence_{bnn_trainer.model_name}.png'
-    plt.savefig(confidence_plot_path, dpi=300, bbox_inches='tight', edgecolor='black')
-    plt.close()
-    
-    print(f"Confidence plot saved: {confidence_plot_path}")
-    
     # Print summary statistics
     overall_accuracy = np.mean(predictions == truths)
     mean_confidence = np.mean(confidences)
@@ -213,21 +149,32 @@ def analyze_confidence_distribution(bnn_trainer: SimpleTrainer, X_val_shaped, Y_
         print(f"Confident scores: {confident_score_values}")
     else:
         confident_score_values = np.array([])
+
+    pd.DataFrame(unique_confs, columns=['confidence']).to_csv(f'{RES_DIR}/unique_confidences.csv')
+    pd.DataFrame(weighted_values_to_plot, columns=['weighted_value']).to_csv(f'{RES_DIR}/weighted_values.csv')
+    pd.DataFrame(confidence_counts.items(), columns=['confidence', 'count']).to_csv(f'{RES_DIR}/confidence_counts.csv')
+    pd.DataFrame(weighted_prob, columns=['weighted_prob']).to_csv(f'{RES_DIR}/weighted_probabilities.csv')
+    pd.DataFrame(confident_scores, columns=['confident_score']).to_csv(f'{RES_DIR}/confident_scores.csv')
     
     return confidences, (predictions == truths), confident_score_values
 
 def main():
-    # Configuration
-    ARCH = 'tiny'
-    # ARCH = 'dense'
+    parser = argparse.ArgumentParser(description="Retraining under Distribution Shift Test")
+    parser.add_argument("--arch", default="tiny", 
+                       choices=["dense", "wide", "tiny"], help="Architecture to test")
+    # parser.add_argument("--eval-random-bnn", action="store_true", 
+    #                    help="Train and evaluate a random featured bnn model for comparison.")
 
-    max_unsw_fraction = 0.4
-    DATASET_SWITCH_START = 20
-    DATASET_SWITCH_END = 40
-    #CRITICAL_SAMPLES_WINDOW = 70000
-    CRITICAL_SAMPLES_WINDOW = 30000
+    args = parser.parse_args()
+    global RES_DIR
+    ARCH = args.arch
+    RES_DIR = f'results/simple_cross_dataset_eval_{ARCH}'
+    ENABLE_RANDOM_BNN = True
 
-    ENABLE_RANDOM_BNN = True  # Killswitch for random BNN model
+    
+    print("🧪 DISTRIBUTION SHIFT TEST")
+    print(f"Architecture: {ARCH}")
+    print()
 
     # Load datasets
     print("Loading CICIDS2017...")
@@ -239,8 +186,8 @@ def main():
     X_cic_test, X_cic_val, Y_cic_test, Y_cic_val = train_test_split(
         X_cic_test, Y_cic_test, train_size=0.9, random_state=42, stratify=Y_cic_test)
     
-    print("Loading CIC-UNSW-NB15...")
-    X_unsw, Y_unsw = load_dataset('CIC-UNSW-NB15')
+    print("Loading CIC_UNSW_NB15...")
+    X_unsw, Y_unsw = load_dataset('CIC_UNSW_NB15')
     X_unsw_train, X_unsw_test, Y_unsw_train, Y_unsw_test = train_test_split(
         X_unsw, Y_unsw, train_size=0.03, random_state=42, stratify=Y_unsw)
 
@@ -317,11 +264,8 @@ def main():
 
     # Use MLP teacher for SHAP computation
     print("\nUsing MLP teacher for SHAP computation...")
-
-    # Compute SHAP features and train SHAP BNN
-    print("\nComputing SHAP features...")
     from ml_helpers.shap_explainer import ShapExplainer
-    shap_result, indices_file = ShapExplainer.run_from_trainer(teacher, force_recompute=True, use_eval=False)
+    shap_result, indices_file = ShapExplainer.run_from_trainer(teacher, force_recompute=True, use_eval=False, out_dir=f'{RES_DIR}/shap_results')
     import json
     with open(indices_file, 'r') as f:
         shap_data = json.load(f)
@@ -332,10 +276,6 @@ def main():
     
     print(f"\nTraining BNN student (SHAP features)")
     bnn_shap.train(X_tr[:,shap_feat_idx], Y_tr, verbose=True)
-
-    # Plot confidence distribution on validation set
-    # print("\nAnalyzing BNN rand confidence distribution...")
-    # X_val_shaped_rand = X_val_merged[:, random_feat_idx]
 
     print("\nAnalyzing BNN SHAP confidence distribution...")
     X_val_shaped_shap = X_val_merged[:, shap_feat_idx]
@@ -348,8 +288,7 @@ def main():
     retraining_completed = False
 
     # Prepare evaluation batches
-    batch_size = 1000
-    n_batches = 170
+
     
     # distribution shift starting point
     shift_start_batch = DATASET_SWITCH_START
@@ -359,55 +298,49 @@ def main():
     
     print(f"Gradual distribution shift:")
     print(f"- Batches 1-{shift_start_batch}: 100% CICIDS2017")
-    print(f"- Batches {shift_start_batch+1}-{max_percentage_batch}: Gradual increase to {max_unsw_fraction*100:.0f}% UNSW-NB15")
-    print(f"- Batches {max_percentage_batch+1}-{n_batches}: Constant {max_unsw_fraction*100:.0f}% UNSW-NB15")
+    print(f"- Batches {shift_start_batch+1}-{max_percentage_batch}: Gradual increase to {MAX_UNSW_FRACTION*100:.0f}% UNSW-NB15")
+    print(f"- Batches {max_percentage_batch+1}-{N_BATCHES}: Constant {MAX_UNSW_FRACTION*100:.0f}% UNSW-NB15")
     
     # Pre-calculate samples needed for each batch
     total_cic_needed = 0
     total_unsw_needed = 0
     unsw_fractions = []
     
-    for i in range(n_batches):
+    for i in range(N_BATCHES):
         if i < shift_start_batch:
-            # Pure CICIDS2017
             unsw_fraction = 0.0
         elif i < max_percentage_batch:
-            # Linear increase
             progress = (i - shift_start_batch) / shift_duration
-            unsw_fraction = progress * max_unsw_fraction
+            unsw_fraction = progress * MAX_UNSW_FRACTION
         else:
-            # Max percentage
-            unsw_fraction = max_unsw_fraction
+            unsw_fraction = MAX_UNSW_FRACTION
         
         unsw_fractions.append(unsw_fraction)
         
-        unsw_samples_in_batch = int(batch_size * unsw_fraction)
-        cic_samples_in_batch = batch_size - unsw_samples_in_batch
+        unsw_samples_in_batch = int(BATCH_SIZE * unsw_fraction)
+        cic_samples_in_batch = BATCH_SIZE - unsw_samples_in_batch
         
         total_cic_needed += cic_samples_in_batch
         total_unsw_needed += unsw_samples_in_batch
     
     print(f"Total samples needed: {total_cic_needed} CICIDS2017, {total_unsw_needed} UNSW-NB15")
-    print(f"Total monitoring samples: {total_cic_needed + total_unsw_needed:,} across {n_batches} batches")
+    print(f"Total monitoring samples: {total_cic_needed + total_unsw_needed:,} across {N_BATCHES} batches")
     
-    # Prepare samples
     cic_eval_samples = X_cic_test[:total_cic_needed]
     cic_eval_labels = Y_cic_test[:total_cic_needed]
     unsw_eval_samples = X_unsw_test[:total_unsw_needed]
     unsw_eval_labels = Y_unsw_test[:total_unsw_needed]
     
-    # Create batches with gradual shift
     eval_batches_X = []
     eval_batches_Y = []
     cic_idx = 0
     unsw_idx = 0
     
-    for i in range(n_batches):
+    for i in range(N_BATCHES):
         unsw_fraction = unsw_fractions[i]
-        unsw_samples_in_batch = int(batch_size * unsw_fraction)
-        cic_samples_in_batch = batch_size - unsw_samples_in_batch
+        unsw_samples_in_batch = int(BATCH_SIZE * unsw_fraction)
+        cic_samples_in_batch = BATCH_SIZE - unsw_samples_in_batch
         
-        # Get samples for this batch
         batch_cic_X = cic_eval_samples[cic_idx:cic_idx + cic_samples_in_batch]
         batch_cic_Y = cic_eval_labels[cic_idx:cic_idx + cic_samples_in_batch]
         cic_idx += cic_samples_in_batch
@@ -417,11 +350,9 @@ def main():
             batch_unsw_Y = unsw_eval_labels[unsw_idx:unsw_idx + unsw_samples_in_batch]
             unsw_idx += unsw_samples_in_batch
             
-            # Combine and shuffle
             batch_X = np.vstack([batch_cic_X, batch_unsw_X])
             batch_Y = np.hstack([batch_cic_Y, batch_unsw_Y])
             
-            # Shuffle within batch
             shuffle_idx = np.random.permutation(len(batch_X))
             batch_X = batch_X[shuffle_idx]
             batch_Y = batch_Y[shuffle_idx]
@@ -432,19 +363,17 @@ def main():
         eval_batches_X.append(batch_X)
         eval_batches_Y.append(batch_Y)
     
-    print(f"\nEvaluating on {n_batches} batches ({batch_size} samples each)")
+    print(f"\nEvaluating on {N_BATCHES} batches ({BATCH_SIZE} samples each)")
     
-    # Evaluate batch by batch (collect BNN random, SHAP + teacher accuracies)
     rand_accuracies = []
     shap_accuracies = []
     teacher_accuracies = []
 
     retrain_batch = 0
-    for i in range(n_batches):
+    for i in range(N_BATCHES):
         batch_X = eval_batches_X[i]
         batch_Y = eval_batches_Y[i]
 
-        # Evaluate models
         if ENABLE_RANDOM_BNN:
             rand_res = bnn_rand.eval_model(batch_X[:, random_feat_idx], batch_Y, verbose=False)
             rand_accuracies.append(rand_res['accuracy'])
@@ -472,10 +401,6 @@ def main():
             retrain_batch = i + 1
             retraining_completed = True
             print(f"\nRetraining SHAP BNN with {len(critical_samples_X)} critical samples at batch {retrain_batch}...")
-            
-            # Analyze original training data composition
-            orig_cic_count = len(X_cic_train)
-            orig_unsw_count = len(X_unsw_train)
             
             # Take 100,000 samples from original training data
             retrain_samples = 95000
@@ -526,79 +451,24 @@ def main():
             print(f"Batch {i+1:2d} ({unsw_pct:.1f}% UNSW) - BNN Random: {rand_res['accuracy']:.3f}, BNN SHAP: {shap_res['accuracy']:.3f}, MLP: {teacher_res['accuracy']:.3f} {critical_count_info} {retrain_flag}")
         else:
             print(f"Batch {i+1:2d} ({unsw_pct:.1f}% UNSW) - BNN SHAP: {shap_res['accuracy']:.3f}, MLP: {teacher_res['accuracy']:.3f} {critical_count_info} {retrain_flag}")
-    
-    # Apply rolling average of last 5 batches for smoother plotting
-    window_size = 10
-    smoothed_rand_accuracies = []
-    smoothed_shap_accuracies = []
-    smoothed_teacher_accuracies = []
-    batch_nums = []
-    
-    for i in range(n_batches):
-        start_idx = max(0, i - window_size + 1)
-        end_idx = i + 1
-        
-        # Calculate rolling average
-        if ENABLE_RANDOM_BNN:
-            avg_rand_acc = np.mean(rand_accuracies[start_idx:end_idx])
-            smoothed_rand_accuracies.append(avg_rand_acc)
-        
-        avg_shap_acc = np.mean(shap_accuracies[start_idx:end_idx])
-        avg_teacher_acc = np.mean(teacher_accuracies[start_idx:end_idx])
 
-        smoothed_shap_accuracies.append(avg_shap_acc)
-        smoothed_teacher_accuracies.append(avg_teacher_acc)
-        batch_nums.append(i + 1)
+    os.makedirs(RES_DIR, exist_ok=True)
+    pd.DataFrame(rand_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/bnn_random_accuracies.csv')
+    pd.DataFrame(teacher_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/mlp_accuracies.csv')
+    pd.DataFrame(shap_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/bnn_shap_accuracies.csv')
     
-    plt.rcParams.update({
-        'font.size': 34,
-        'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
-    })
-    
-    # Plot results
-    # plt.figure(figsize=(14, 8))
-    
-    # Single-axis plot: BNN and MLP accuracies, vertical line at first mixed batch
-    fig, ax = plt.subplots(figsize=(14, 8))
-    if ENABLE_RANDOM_BNN:
-        ax.plot(batch_nums, smoothed_rand_accuracies, '--', linewidth=2, markersize=6, label='BNN random')
-    ax.plot(batch_nums, smoothed_shap_accuracies, '-', linewidth=3, markersize=6, label='BNN shap')
-    ax.plot(batch_nums, smoothed_teacher_accuracies, '-', linewidth=3, markersize=6, label='MLP')
-    ax.set_xlabel('Batch Number')
-    ax.set_ylabel('Accuracy')
-    ax.set_ylim(0.65, 1)
-    ax.grid(False)
-
-    # Vertical line at first mixed batch (1-based index)
-    first_mixed_batch = shift_start_batch + 1
-    ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=3, label='Distribution Shift')
-    
-    # Add retraining line
-    ax.axvline(x=retrain_batch, color='red', linestyle=':', alpha=0.7, linewidth=3, label='SHAP Retraining')
-
-    # Calculate accuracy gaps and add bidirectional arrows
-    if ENABLE_RANDOM_BNN and retrain_batch > 0:
-        # Gap after retraining (from retraining to end)
-        if retrain_batch < len(smoothed_rand_accuracies):
-            post_gap_rand = np.mean(smoothed_rand_accuracies[retrain_batch:])
-            post_gap_shap = np.mean(smoothed_shap_accuracies[retrain_batch:])
-            post_gap = abs(post_gap_rand - post_gap_shap)
-            
-            # Arrow after retraining
-            mid_batch_post = (retrain_batch + len(smoothed_rand_accuracies)) / 2
-            y_pos_post = (post_gap_rand + post_gap_shap) / 2
-            ax.annotate('', xy=(mid_batch_post, post_gap_rand), xytext=(mid_batch_post, post_gap_shap),
-                       arrowprops=dict(arrowstyle='<->', lw=2))
-            ax.text(mid_batch_post + 5, y_pos_post, f'{post_gap*100:.1f}%', fontsize=30)
-
-    ax.legend(loc='lower left', fontsize=30, ncol=2)
-    plt.tight_layout()
-    
-    out_path = f'bnn_gradual_shift_eval_to_{max_unsw_fraction:.2f}.png'
-    plt.savefig(out_path, dpi=300, bbox_inches='tight')
-
-    print(f"\nPlot saved to {out_path}")
+    with open(f'{RES_DIR}/config.json', 'w') as f:
+        curr_config = {
+            'MAX_UNSW_FRACTION': MAX_UNSW_FRACTION,
+            'DATASET_SWITCH_START': DATASET_SWITCH_START,
+            'DATASET_SWITCH_END':DATASET_SWITCH_END,
+            'CRITICAL_SAMPLES_WINDOW': CRITICAL_SAMPLES_WINDOW,
+            'N_BATCHES': N_BATCHES,
+            'BATCH_SIZE': BATCH_SIZE,
+            'ENABLE_RANDOM_BNN': ENABLE_RANDOM_BNN,
+            'RETRAIN_BATCH': retrain_batch,
+        }
+        json.dump(curr_config, f)
     
     # Summary by phase - Domain shift analysis without retraining
     if ENABLE_RANDOM_BNN:
@@ -609,7 +479,7 @@ def main():
         print(f"\nBNN (random) Summary:")
         print(f"Pure CICIDS2017 accuracy: {pure_cic_acc_rand:.3f}")
         print(f"Gradual shift accuracy: {gradual_shift_acc_rand:.3f}")
-        print(f"Max shift accuracy ({max_unsw_fraction*100:.0f}% UNSW): {max_shift_acc_rand:.3f}")
+        print(f"Max shift accuracy ({MAX_UNSW_FRACTION*100:.0f}% UNSW): {max_shift_acc_rand:.3f}")
         print(f"Total performance drop: {pure_cic_acc_rand - max_shift_acc_rand:.3f}")
 
     # BNN SHAP summary
@@ -631,7 +501,7 @@ def main():
     print(f"\nBNN (SHAP) Summary:")
     print(f"Pure CICIDS2017 accuracy: {pure_cic_acc_shap:.3f}")
     print(f"Gradual shift accuracy: {gradual_shift_acc_shap:.3f}")
-    print(f"Max shift accuracy ({max_unsw_fraction*100:.0f}% UNSW): {max_shift_acc_shap:.3f}")
+    print(f"Max shift accuracy ({MAX_UNSW_FRACTION*100:.0f}% UNSW): {max_shift_acc_shap:.3f}")
     if post_retrain_avg_acc is not None:
         print(f"Post-retraining average accuracy: {post_retrain_avg_acc:.3f}")
         print(f"Post-retraining maximum accuracy: {post_retrain_max_acc:.3f}")
@@ -644,7 +514,7 @@ def main():
     print(f"\nMLP Summary:")
     print(f"Pure CICIDS2017 accuracy: {pure_cic_acc_teacher:.3f}")
     print(f"Gradual shift accuracy: {gradual_shift_acc_teacher:.3f}")
-    print(f"Max shift accuracy ({max_unsw_fraction*100:.0f}% UNSW): {max_shift_acc_teacher:.3f}")
+    print(f"Max shift accuracy ({MAX_UNSW_FRACTION*100:.0f}% UNSW): {max_shift_acc_teacher:.3f}")
     print(f"Total performance drop: {pure_cic_acc_teacher - max_shift_acc_teacher:.3f}")
 
 

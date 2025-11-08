@@ -73,23 +73,23 @@ def main():
         cic_ids_2017 = preprocess_df(cic_ids_2017)
         bin_cic_ids_2017 = binarize_df(cic_ids_2017)
         bin_cic_ids_2017 = undersample_df(bin_cic_ids_2017)
-        cic_ids_2017.to_csv(f'{DATA_PATH}/CICIDS2017/full_cicids2017.csv')
-        bin_cic_ids_2017.to_csv(f'{DATA_PATH}/CICIDS2017/bin_cicids2017_168b.csv')
+        cic_ids_2017.to_csv(f'{DATA_PATH}/CICIDS2017/full_cicids2017.csv', index=False)
+        bin_cic_ids_2017.to_csv(f'{DATA_PATH}/CICIDS2017/bin_cicids2017_168b.csv', index=False)
         print('CICIDS2017 processed datasets saved.')
 
     if os.path.exists(CIC_UNSW_NB15_SAMPLES):
-        print('Reading CIC-UNSW-NB15 files...')
+        print('Reading CIC_UNSW_NB15 files...')
         data = pd.read_csv(CIC_UNSW_NB15_SAMPLES, skipinitialspace=True)
         labels = pd.read_csv(CIC_UNSW_NB15_LABELS, skipinitialspace=True)
         assert len(data)==len(labels)
         cic_unsw_nb15 = pd.DataFrame(pd.concat([data, labels], axis=1))
 
-        print('Starting CIC-UNSW-NB15 process...')
+        print('Starting CIC_UNSW_NB15 process...')
         cic_unsw_nb15 = preprocess_df(cic_unsw_nb15)
         bin_cic_unsw_nb15 = binarize_df(cic_unsw_nb15)
-        cic_unsw_nb15.to_csv(f'{DATA_PATH}/CIC-UNSW-NB15/full_cic_unsw_nb15.csv')
-        bin_cic_unsw_nb15.to_csv(f'{DATA_PATH}/CIC-UNSW-NB15/bin_cic_unsw_nb15_168b.csv')
-        print('CIC-UNSW-NB15 processed dataset saved.')
+        cic_unsw_nb15.to_csv(f'{DATA_PATH}/CIC_UNSW_NB15/full_cic_unsw_nb15.csv', index=False)
+        bin_cic_unsw_nb15.to_csv(f'{DATA_PATH}/CIC_UNSW_NB15/bin_cic_unsw_nb15_168b.csv', index=False)
+        print('CIC_UNSW_NB15 processed dataset saved.')
 
 def binarize_df(df: pd.DataFrame):
     df_Y=df[df.columns[-1]]

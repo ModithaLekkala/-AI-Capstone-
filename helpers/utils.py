@@ -2,6 +2,12 @@ from configparser import ConfigParser
 import os
 from pathlib import Path
 import warnings
+import numpy as np
+import matplotlib.pyplot as plt
+import json
+import pandas as pd
+from scipy.stats import norm
+import torch
 
 def suppress_warnings():
     # Suppress brevitas Warning
@@ -59,3 +65,163 @@ def get_file_from_keyword(directory, keyword):
         if file.is_file() and keyword in file.name:
             return file
     return None
+
+def plot_distribution_shift_bnn(dir):
+    if os.path.isfile(f'{dir}/config.json'):
+        with open(f'{dir}/config.json', 'r') as f:
+            config = json.load(f)
+
+    MAX_UNSW_FRACTION = config['MAX_UNSW_FRACTION']
+    DATASET_SWITCH_START = config['DATASET_SWITCH_START']
+    N_BATCHES = config['N_BATCHES']
+    RETRAIN_BATCH = config['RETRAIN_BATCH']
+    ENABLE_RANDOM_BNN = config['ENABLE_RANDOM_BNN']
+
+    rand_accuracies = pd.read_csv(f'{dir}/bnn_random_accuracies.csv')['accuracy'].tolist() if ENABLE_RANDOM_BNN else []
+    shap_accuracies = pd.read_csv(f'{dir}/bnn_shap_accuracies.csv')['accuracy'].tolist()
+    teacher_accuracies = pd.read_csv(f'{dir}/mlp_accuracies.csv')['accuracy'].tolist()
+
+    # Apply rolling average of last 5 batches for smoother plotting
+    window_size = 10
+    smoothed_rand_accuracies = []
+    smoothed_shap_accuracies = []
+    smoothed_teacher_accuracies = []
+    batch_nums = []
+    
+    for i in range(N_BATCHES):
+        start_idx = max(0, i - window_size + 1)
+        end_idx = i + 1
+        
+        # Calculate rolling average
+        if ENABLE_RANDOM_BNN:
+            avg_rand_acc = np.mean(rand_accuracies[start_idx:end_idx])
+            smoothed_rand_accuracies.append(avg_rand_acc)
+        
+        avg_shap_acc = np.mean(shap_accuracies[start_idx:end_idx])
+        avg_teacher_acc = np.mean(teacher_accuracies[start_idx:end_idx])
+
+        smoothed_shap_accuracies.append(avg_shap_acc)
+        smoothed_teacher_accuracies.append(avg_teacher_acc)
+        batch_nums.append(i + 1)
+    
+    plt.rcParams.update({
+        'font.size': 34,
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+    })
+    
+    # Single-axis plot: BNN and MLP accuracies, vertical line at first mixed batch
+    fig, ax = plt.subplots(figsize=(14, 8))
+    if ENABLE_RANDOM_BNN:
+        ax.plot(batch_nums, smoothed_rand_accuracies, '--', linewidth=2, markersize=6, label='BNN random')
+    ax.plot(batch_nums, smoothed_shap_accuracies, '-', linewidth=3, markersize=6, label='BNN shap')
+    ax.plot(batch_nums, smoothed_teacher_accuracies, '-', linewidth=3, markersize=6, label='MLP')
+    ax.set_xlabel('Batch Number')
+    ax.set_ylabel('Accuracy')
+    ax.set_ylim(0.65, 1)
+    ax.grid(False)
+
+    # Vertical line at first mixed batch (1-based index)
+    first_mixed_batch = DATASET_SWITCH_START + 1
+    ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=3, label='Distribution Shift')
+    
+    # Add retraining line
+    if(RETRAIN_BATCH > 0):
+        ax.axvline(x=RETRAIN_BATCH, color='red', linestyle=':', alpha=0.7, linewidth=3, label='SHAP Retraining')
+
+    # Calculate accuracy gaps and add bidirectional arrows
+    if ENABLE_RANDOM_BNN and RETRAIN_BATCH > 0:
+        # Gap after retraining (from retraining to end)
+        if RETRAIN_BATCH < len(smoothed_rand_accuracies):
+            post_gap_rand = np.mean(smoothed_rand_accuracies[RETRAIN_BATCH:])
+            post_gap_shap = np.mean(smoothed_shap_accuracies[RETRAIN_BATCH:])
+            post_gap = abs(post_gap_rand - post_gap_shap)
+            
+            # Arrow after retraining
+            mid_batch_post = (RETRAIN_BATCH + len(smoothed_rand_accuracies)) / 2
+            y_pos_post = (post_gap_rand + post_gap_shap) / 2
+            ax.annotate('', xy=(mid_batch_post, post_gap_rand), xytext=(mid_batch_post, post_gap_shap),
+                       arrowprops=dict(arrowstyle='<->', lw=2))
+            ax.text(mid_batch_post + 5, y_pos_post, f'{post_gap*100:.1f}%', fontsize=30)
+
+    ax.legend(loc='lower left', fontsize=30, ncol=2)
+    plt.tight_layout()
+    
+    out_path = f'{dir}/bnn_gradual_shift_eval_to_{MAX_UNSW_FRACTION:.2f}.png'
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
+
+    print(f"\nPlot saved to {out_path}")
+
+def plot_confidence_scores(dir):
+    if os.path.isfile(f'{dir}/config.json'):
+        with open(f'{dir}/config.json', 'r') as f:
+            config = json.load(f)
+    
+    unique_confs = pd.read_csv(f'{dir}/unique_confidences.csv')['confidence'].tolist()
+    weighted_values_to_plot = pd.read_csv(f'{dir}/weighted_values.csv')['weighted_value'].tolist()
+    confidence_counts_df = pd.read_csv(f'{dir}/confidence_counts.csv')
+    confidence_counts = dict(zip(confidence_counts_df['confidence'], confidence_counts_df['count']))
+    weighted_prob = pd.read_csv(f'{dir}/weighted_probabilities.csv')['weighted_prob'].tolist()
+    confident_scores = pd.read_csv(f'{dir}/confident_scores.csv')['confident_score'].tolist()
+
+    # Create plot matching trainer.py style exactly
+    plt.rcParams.update({
+        'font.size': 30,
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+    })
+    
+    fig, ax1 = plt.subplots(figsize=(14, 8))
+    
+    # Primary y-axis: Weighted accuracy bars (accuracy × percentage)
+    bars = ax1.bar(unique_confs, weighted_values_to_plot, width=0.6, alpha=0.7, 
+                  color='green', edgecolor='black', capsize=5)
+    
+    # Add hatches to confident score bars
+    for i, prob in enumerate(weighted_prob):
+        if prob in confident_scores:
+            bars[i].set_hatch('ooo')
+    
+    ax1.set_xlabel('Confidence Score')
+    ax1.set_ylabel('P(Correct|Confidence) × Sample %', color='black')
+    max_weighted = max(weighted_values_to_plot) if len(weighted_values_to_plot) > 0 else 1
+    ax1.set_ylim([0, max_weighted * 1.2])
+    ax1.tick_params(axis='y', labelcolor='black')
+    
+    # Fit Gaussian model to confidence scores
+    confidence_data_for_fitting = []
+    for conf, count in confidence_counts.items():
+        confidence_data_for_fitting.extend([conf] * count)
+    
+    if len(confidence_data_for_fitting) > 0:
+        # Fit Gaussian distribution
+        mu, sigma = norm.fit(confidence_data_for_fitting)
+        
+        # Create smooth curve for overlay
+        x_smooth = np.linspace(min(unique_confs), max(unique_confs), 200)
+        gaussian_curve = norm.pdf(x_smooth, mu, sigma)
+        
+        # Scale Gaussian curve to match the weighted values scale
+        scale_factor = max_weighted * 0.8  # Scale to 80% of max for visibility
+        gaussian_curve_scaled = gaussian_curve * scale_factor / max(gaussian_curve)
+        
+        # Plot Gaussian curve overlay
+        ax1.plot(x_smooth, gaussian_curve_scaled, 'b-', linewidth=3, 
+                label='Gaussian Fit', alpha=0.8)
+        
+        # Add legend
+        ax1.legend(loc='upper right')
+        
+        print(f'Gaussian fit: μ = {mu:.4f}, σ = {sigma:.4f}')
+    
+    # Style the plot borders
+    for spine in ax1.spines.values():
+        spine.set_edgecolor('black')
+        spine.set_linewidth(0.7)
+    
+    plt.tight_layout()
+    confidence_plot_path = f'{dir}/bnn_gradual_shift_confidence.png'
+    plt.savefig(confidence_plot_path, dpi=300, bbox_inches='tight', edgecolor='black')
+    plt.close()
+    
+    print(f"Confidence plot saved: {confidence_plot_path}")

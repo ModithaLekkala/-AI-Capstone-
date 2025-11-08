@@ -226,4 +226,8 @@ p4src/shaps*
 *.pkl
 *.csv
 *.npy
+feature_indices.json
+last_selected_features.json
+shaps*
+results*
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv

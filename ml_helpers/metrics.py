@@ -438,12 +438,6 @@ class MetricsManager():
             print(f'Gaussian confidence model saved: {model_path}')
             print(f'  μ = {mu:.4f}, σ = {sigma:.4f}')
         
-        # Add a text box with total sample information
-        # textstr = f'Total Evaluation Samples: {total_samples:,}'
-        # props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
-        # ax1.text(0.02, 0.98, textstr, transform=ax1.transAxes, fontsize=18,
-        #         verticalalignment='top', bbox=props)
-        
         for spine in ax1.spines.values():
             spine.set_edgecolor('black')
             spine.set_linewidth(0.7)
