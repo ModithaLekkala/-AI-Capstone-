@@ -275,7 +275,8 @@ def main():
     print(f"SHAP feature indices: {shap_feat_idx[:10]}...")  # Show first 10
     
     print(f"\nTraining BNN student (SHAP features)")
-    bnn_shap.train(X_tr[:,shap_feat_idx], Y_tr, verbose=True)
+    res = bnn_shap.train(X_tr[:,shap_feat_idx], Y_tr, verbose=True)
+    pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/bnn_shap_train_accuracies.csv')
 
     print("\nAnalyzing BNN SHAP confidence distribution...")
     X_val_shaped_shap = X_val_merged[:, shap_feat_idx]

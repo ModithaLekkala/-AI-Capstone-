@@ -152,6 +152,55 @@ def plot_distribution_shift_bnn(dir):
 
     print(f"\nPlot saved to {out_path}")
 
+
+def plot_training_accuracies(dir):
+    """
+    Plot training accuracy per epoch with a rolling average (window=6).
+
+    Args:
+        accuracies (list or array-like): list of accuracy values, one per epoch.
+    """
+    accuracies = pd.read_csv(f'{dir}/bnn_shap_train_accuracies.csv')['batch_accuracies'].tolist()
+
+    if accuracies is None or len(accuracies) == 0:
+        print("No accuracies to plot.")
+        return
+
+    # Convert to pandas Series for easy rolling average
+    acc_series = pd.Series(accuracies)
+    rolling_avg = acc_series.rolling(window=1, min_periods=1).mean()
+
+    epochs = np.arange(1, len(accuracies) + 1)
+
+    # Plot styling consistent with other plotting helpers
+    plt.rcParams.update({
+        'font.size': 34,
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+    })
+
+    fig, ax = plt.subplots(figsize=(14, 8))
+
+    # Raw accuracies (light) and rolling average (prominent)
+    ax.plot(epochs, accuracies, '-', color='gray', linewidth=1.0, alpha=0.45, marker='o', markersize=6, label='Epoch accuracy')
+    ax.plot(epochs, rolling_avg.values, '-', color='tab:blue', linewidth=3, markersize=6, label='Rolling avg (6)')
+
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Accuracy')
+    ax.set_ylim(0.0, 1.0)
+    ax.grid(False)
+
+    # Annotate final values for convenience
+    final_acc = accuracies[-1]
+    final_avg = rolling_avg.values[-1]
+    ax.text(epochs[-1], final_avg, f" {final_avg:.3f}", fontsize=26, va='center')
+
+    ax.legend(loc='lower right', fontsize=26)
+    plt.tight_layout()
+    confidence_plot_path = f'{dir}/bnn_gradual_training.png'
+    plt.savefig(confidence_plot_path, dpi=300, bbox_inches='tight', edgecolor='black')
+    plt.close()
+
 def plot_confidence_scores(dir):
     if os.path.isfile(f'{dir}/config.json'):
         with open(f'{dir}/config.json', 'r') as f:

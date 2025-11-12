@@ -197,6 +197,7 @@ class SimpleTrainer:
         self.model.train()
         best_val_acc = 0
         best_model_state = None
+        train_accs = []
         
         for epoch in range(self.epochs):
             # Training phase
@@ -239,6 +240,7 @@ class SimpleTrainer:
             
             train_acc = train_correct / train_total
             train_loss_avg = train_loss / len(train_loader)
+            train_accs.append(train_acc)
             
             # Validation phase
             val_acc = 0
@@ -307,7 +309,8 @@ class SimpleTrainer:
         return {
             'final_accuracy': final_acc,
             'final_loss': final_loss,
-            'best_val_accuracy': best_val_acc if val_loader else None
+            'best_val_accuracy': best_val_acc if val_loader else None,
+            'train_accuracies': train_accs
         }
     
     def cross_validate_and_full_training(self, X, Y, n_folds=5, verbose=True):
