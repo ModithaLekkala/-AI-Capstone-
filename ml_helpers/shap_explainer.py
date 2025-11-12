@@ -54,9 +54,9 @@ class ShapExplainer:
             self.out_dir = self.out_dir.split('/shap_')[0]+self.out_dir.split('/shap_')[1]
         os.makedirs(self.out_dir, exist_ok=True)
 
-        np.random.seed(random_state)
-        torch.manual_seed(random_state)
-        random.seed(random_state)
+        # np.random.seed(random_state)
+        # torch.manual_seed(random_state)
+        # random.seed(random_state)
         
 
     # ------------------------ prediction wrapper ------------------------

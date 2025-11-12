@@ -56,10 +56,10 @@ class SimpleTrainer:
         self.learning_rate = trainer_cfg.getfloat('TRAINING', 'LR')
         self.scheduler_type = trainer_cfg.get('TRAINING', 'SCHEDULER')
         self.loss = trainer_cfg.get('TRAINING', 'LOSS')
-        self.random_seed = trainer_cfg.getint('GENERAL', 'RANDOM_SEED', fallback=42)
-        torch.manual_seed(self.random_seed)
-        np.random.seed(self.random_seed)
-        random.seed(self.random_seed)
+        # self.random_seed = trainer_cfg.getint('GENERAL', 'RANDOM_SEED', fallback=42)
+        # torch.manual_seed(self.random_seed)
+        # np.random.seed(self.random_seed)
+        # random.seed(self.random_seed)
 
         # Set epochs based on model type
         if model_name == 'mlp':
