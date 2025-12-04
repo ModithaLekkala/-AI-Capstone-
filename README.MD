@@ -6,10 +6,17 @@ This work is in collaboration with:
 - Lorenzo Pappone and Flavio Esposito from Saint Louis University, Missouri, USA
 
 ## Dependencies
-- Download CICIDS2017 and CIC_UNSW_NB15 datasets
 - Supported Python versions: 3.8, 3.10
-- Tofino SDE needs to be installed.
-- Run: `sudo python -m pip install --upgrade --no-cache-dir --target $SDE_INSTALL/lib/python<pyversion>/site-packages -r requirement.txt`
+- `pip install -r requirements.txt` to install python dependencies.
+- `bash init.sh` in order to download and prepare datasets.
+
+## Replicate models dynamic retraining and evaluation. 
+After dependecies installation.
+- `python simple_cross_dataset_eval --help` to train BNNs in a distribution shift environment.
+- `python plot_cross_dataset_eval --dir results/simple_cross_dataset_eval_<arch>` to plot the corresponding results.
+
+## BNN and MLP training and evaluation with SHAP.
+- `python shap_training_test --help` to train BNNs on a fixed dataset.
 
 ## Launch feature_collector and/or bnn_executor via multi-pipeline p4 program.
 1) After cloning the repository: `cd inet-hynn/p4src`
@@ -20,12 +27,6 @@ This work is in collaboration with:
 6) Launch controller setup on external terminal ``running $SDE/run_bfshell.sh -b `pwd`/p4src/controller_adv.py``
     - test a. single flow feature extractor + bnn executor: `sudo python p4src/client.py --pcap <pcapfile_path>`
     - test b. multiple flows bnn executor test:  `sudo python p4src/client_send_flows.py` 
-
-## BNN and MLP training and evaluation with SHAP.
-Run `python shap_training_test.py --help`
-
-## Launch models dynamic retraining and evaluation. 
-Run `python simple_cross_dataset_eval.py`
 
 ## File usage
 - client_send_flows.py: Simulate the tf_features_extr tofino pipeline by sending 168b long flows statistics. Dataset and selected features chosen by the file parameters.

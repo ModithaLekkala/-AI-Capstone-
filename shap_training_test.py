@@ -266,10 +266,10 @@ def run_experiment(arch, dataset, train_base=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Final Test Suite")
-    parser.add_argument("--archs", nargs="+", default=["dense", "wide", "tiny"], 
-                       choices=["dense", "wide", "tiny"], help="Architectures to test")
-    parser.add_argument("--datasets", nargs="+", default=["UNSW-NB15-custom", 'CICIDS2017'], 
-                       help="Datasets to test")
+    parser.add_argument("--archs", nargs="+", 
+                       choices=["dense", "wide", "tiny"], help="Architectures to test", required=True)
+    parser.add_argument("--datasets", nargs="+", required=True,
+                       choices=["CIC_UNSW_NB15", "CICIDS2017"], help="Datasets to test")
     parser.add_argument("--train-base", action="store_true", 
                        help="Train base models instead of loading existing ones")
     args = parser.parse_args()
