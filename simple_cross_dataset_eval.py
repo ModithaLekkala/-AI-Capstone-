@@ -20,8 +20,8 @@ MAX_UNSW_FRACTION = 0.4
 DATASET_SWITCH_START = 20
 DATASET_SWITCH_END = 40
 # CRITICAL_SAMPLES_WINDOW = 10000 # wide
-# CRITICAL_SAMPLES_WINDOW = 30000 # tiny
-CRITICAL_SAMPLES_WINDOW = 40000 # dense
+CRITICAL_SAMPLES_WINDOW = 30000 # tiny
+# CRITICAL_SAMPLES_WINDOW = 40000 # dense
 BATCH_SIZE = 1000
 N_BATCHES = 170
 RES_DIR = ''
@@ -164,8 +164,6 @@ def main():
     parser = argparse.ArgumentParser(description="Retraining under Distribution Shift Test")
     parser.add_argument("--arch", default="tiny", 
                        choices=["dense", "wide", "tiny"], help="Architecture to test")
-    # parser.add_argument("--eval-random-bnn", action="store_true", 
-    #                    help="Train and evaluate a random featured bnn model for comparison.")
 
     args = parser.parse_args()
     global RES_DIR
@@ -173,7 +171,9 @@ def main():
     RES_DIR = f'results/simple_cross_dataset_eval_{ARCH}'
     ENABLE_RANDOM_BNN = True
 
-    
+    print('Create results dir...',end='')
+    os.makedirs(RES_DIR, exist_ok=True)
+    print(' OK\n')
     print("🧪 DISTRIBUTION SHIFT TEST")
     print(f"Architecture: {ARCH}")
     print()
@@ -243,7 +243,9 @@ def main():
         print(f"Selected random features: {random_feat_idx[:10]}...")  # Show first 10
 
         print("\nTraining BNN random model (random features)")
-        bnn_rand.train(X_tr[:, random_feat_idx], Y_tr, verbose=True)  # Use random features
+        res=bnn_rand.train(X_tr[:, random_feat_idx], Y_tr, verbose=True)  # Use random features
+        pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/bnn_shap_train_rand_accuracies.csv')
+
     else:
         random_feat_idx = None
 
@@ -371,11 +373,19 @@ def main():
     rand_accuracies = []
     shap_accuracies = []
     teacher_accuracies = []
+    shap_no_acc_accuracies = []
+
+    X_evaluation_samples_so_far = []
+    Y_evaluation_samples_so_far = []
 
     retrain_batch = 0
     for i in range(N_BATCHES):
         batch_X = eval_batches_X[i]
         batch_Y = eval_batches_Y[i]
+
+        if not retraining_completed:
+            X_evaluation_samples_so_far.extend(batch_X)
+            Y_evaluation_samples_so_far.extend(batch_Y)
 
         if ENABLE_RANDOM_BNN:
             rand_res = bnn_rand.eval_model(batch_X[:, random_feat_idx], batch_Y, verbose=False)
@@ -431,14 +441,36 @@ def main():
             retrain_Y = retrain_Y[shuffle_idx]
             
             # Create new trainer instance for retraining
-            print("Creating new SHAP BNN trainer instance for retraining...")
+            print("\nCreating new SHAP BNN trainer instance for retraining...")
             retrained_bnn_shap = SimpleTrainer('tf_bnn_shap_retrained', ARCH, 'cpu')
             retrained_bnn_shap.reset_model()
             retrained_bnn_shap.epochs += 40
-            retrained_bnn_shap.train(retrain_X[:, shap_feat_idx], retrain_Y, verbose=True)
+            res=retrained_bnn_shap.train(retrain_X[:, shap_feat_idx], retrain_Y, verbose=True)
+            pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/bnn_shap_retrain_accuracies.csv')
 
+
+            # Create new trainer instance for retraining
+            print("\nCreating new SHAP BNN trainer instance NO CONFIDENCE for retraining...")
+            X_evaluation_samples_so_far = np.array(X_evaluation_samples_so_far)
+            Y_evaluation_samples_so_far = np.array(Y_evaluation_samples_so_far)
+            critical_samples_indices = np.random.choice(len(X_evaluation_samples_so_far), CRITICAL_SAMPLES_WINDOW, replace=False)
+            X_evaluation_samples_so_far = X_evaluation_samples_so_far[critical_samples_indices]
+            Y_evaluation_samples_so_far = Y_evaluation_samples_so_far[critical_samples_indices]
+
+            X_evaluation_samples_so_far = np.vstack([retrain_og_X, np.array(X_evaluation_samples_so_far)])
+            Y_evaluation_samples_so_far = np.hstack([retrain_og_Y, np.array(Y_evaluation_samples_so_far)])
+            retrained_bnn_shap_no_conf = SimpleTrainer('tf_bnn_shap_retrained_no_conf', ARCH, 'cpu')
+            retrained_bnn_shap_no_conf.reset_model()
+            retrained_bnn_shap_no_conf.epochs += 40
+            res=retrained_bnn_shap_no_conf.train(X_evaluation_samples_so_far[:, shap_feat_idx], Y_evaluation_samples_so_far, verbose=True)
+            pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/bnn_shap_retrain_no_conf_accuracies.csv')
+
+        
         # Evaluate SHAP BNN (use retrained model if available)
         if retraining_completed:
+            shap_no_conf = retrained_bnn_shap_no_conf.eval_model(batch_X[:, shap_feat_idx], batch_Y, verbose=False)
+            shap_no_acc_accuracies.append(shap_no_conf['accuracy'])
+            
             print('Retrained model available. Take it')
             current_shap_model = retrained_bnn_shap
         else:
@@ -459,6 +491,8 @@ def main():
     pd.DataFrame(rand_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/bnn_random_accuracies.csv')
     pd.DataFrame(teacher_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/mlp_accuracies.csv')
     pd.DataFrame(shap_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/bnn_shap_accuracies.csv')
+    shap_no_acc_accuracies = np.concatenate([shap_accuracies[:retrain_batch-1],shap_no_acc_accuracies])
+    pd.DataFrame(shap_no_acc_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/bnn_shap_no_conf_accuracies.csv')
     
     with open(f'{RES_DIR}/config.json', 'w') as f:
         curr_config = {

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import json
 import pandas as pd
 from scipy.stats import norm
-import torch
+from matplotlib.patches import Patch  # <--- Added this import
 
 def suppress_warnings():
     # Suppress brevitas Warning
@@ -66,7 +66,7 @@ def get_file_from_keyword(directory, keyword):
             return file
     return None
 
-def plot_distribution_shift_bnn(dir):
+def plot_distribution_shift_bnn(dir, filename, enable_bnn_random_plot=False, enable_bnn_no_conf_plot=False):
     if os.path.isfile(f'{dir}/config.json'):
         with open(f'{dir}/config.json', 'r') as f:
             config = json.load(f)
@@ -75,17 +75,20 @@ def plot_distribution_shift_bnn(dir):
     DATASET_SWITCH_START = config['DATASET_SWITCH_START']
     N_BATCHES = config['N_BATCHES']
     RETRAIN_BATCH = config['RETRAIN_BATCH']
-    ENABLE_RANDOM_BNN = config['ENABLE_RANDOM_BNN']
+    ENABLE_RANDOM_BNN = enable_bnn_random_plot
+    ENABLE_NO_CONF_BNN = enable_bnn_no_conf_plot
 
     rand_accuracies = pd.read_csv(f'{dir}/bnn_random_accuracies.csv')['accuracy'].tolist() if ENABLE_RANDOM_BNN else []
     shap_accuracies = pd.read_csv(f'{dir}/bnn_shap_accuracies.csv')['accuracy'].tolist()
     teacher_accuracies = pd.read_csv(f'{dir}/mlp_accuracies.csv')['accuracy'].tolist()
+    shap_accuracies_no_conf = pd.read_csv(f'{dir}/bnn_shap_no_conf_accuracies.csv')['accuracy'].tolist() if ENABLE_NO_CONF_BNN else []
 
     # Apply rolling average of last 5 batches for smoother plotting
     window_size = 10
     smoothed_rand_accuracies = []
     smoothed_shap_accuracies = []
     smoothed_teacher_accuracies = []
+    smoothed_shap_accuracies_no_conf = []
     batch_nums = []
     
     for i in range(N_BATCHES):
@@ -99,23 +102,30 @@ def plot_distribution_shift_bnn(dir):
         
         avg_shap_acc = np.mean(shap_accuracies[start_idx:end_idx])
         avg_teacher_acc = np.mean(teacher_accuracies[start_idx:end_idx])
+        if ENABLE_NO_CONF_BNN:
+            avg_shap_acc_no_conf = np.mean(shap_accuracies_no_conf[start_idx:end_idx])
 
         smoothed_shap_accuracies.append(avg_shap_acc)
         smoothed_teacher_accuracies.append(avg_teacher_acc)
+        if ENABLE_NO_CONF_BNN:
+            smoothed_shap_accuracies_no_conf.append(avg_shap_acc_no_conf)
+
         batch_nums.append(i + 1)
     
     plt.rcParams.update({
-        'font.size': 34,
+        'font.size': 26,
         'font.family': 'sans-serif',
         'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
     })
     
     # Single-axis plot: BNN and MLP accuracies, vertical line at first mixed batch
-    fig, ax = plt.subplots(figsize=(14, 8))
+    fig, ax = plt.subplots(figsize=(9, 6))
     if ENABLE_RANDOM_BNN:
-        ax.plot(batch_nums, smoothed_rand_accuracies, '--', linewidth=2, markersize=6, label='BNN random')
-    ax.plot(batch_nums, smoothed_shap_accuracies, '-', linewidth=3, markersize=6, label='BNN shap')
-    ax.plot(batch_nums, smoothed_teacher_accuracies, '-', linewidth=3, markersize=6, label='MLP')
+        ax.plot(batch_nums, smoothed_rand_accuracies, '--', linewidth=2, markersize=6, label='BNN random', color='C0')
+    ax.plot(batch_nums, smoothed_shap_accuracies, '-', linewidth=3, markersize=6, label='BNN shap' , color='C1')
+    ax.plot(batch_nums, smoothed_teacher_accuracies, '-', linewidth=3, markersize=6, label='MLP', color='C2')
+    if ENABLE_NO_CONF_BNN:
+        ax.plot(batch_nums, smoothed_shap_accuracies_no_conf, '-', linewidth=3, markersize=6, label='BNN no conf', color='C3')
     ax.set_xlabel('Batch Number')
     ax.set_ylabel('Accuracy')
     ax.set_ylim(0.65, 1)
@@ -123,11 +133,13 @@ def plot_distribution_shift_bnn(dir):
 
     # Vertical line at first mixed batch (1-based index)
     first_mixed_batch = DATASET_SWITCH_START + 1
-    ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=3, label='Distribution Shift')
+    # ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=3, label='Domain Shift')
+    ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=3)
+
     
     # Add retraining line
     if(RETRAIN_BATCH > 0):
-        ax.axvline(x=RETRAIN_BATCH, color='red', linestyle=':', alpha=0.7, linewidth=3, label='SHAP Retraining')
+        ax.axvline(x=RETRAIN_BATCH, color='red', linestyle=':', alpha=0.7, linewidth=3)
 
     # Calculate accuracy gaps and add bidirectional arrows
     if ENABLE_RANDOM_BNN and RETRAIN_BATCH > 0:
@@ -144,10 +156,10 @@ def plot_distribution_shift_bnn(dir):
                        arrowprops=dict(arrowstyle='<->', lw=2))
             ax.text(mid_batch_post + 5, y_pos_post, f'{post_gap*100:.1f}%', fontsize=30)
 
-    ax.legend(loc='lower left', fontsize=30, ncol=2)
+    ax.legend(loc='lower left', fontsize=26, ncol=2)
     plt.tight_layout()
     
-    out_path = f'{dir}/bnn_gradual_shift_eval_to_{MAX_UNSW_FRACTION:.2f}.png'
+    out_path = f'{dir}/bnn_gradual_shift_eval_to_{MAX_UNSW_FRACTION:.2f}_{filename}.png'
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
 
     print(f"\nPlot saved to {out_path}")
@@ -201,6 +213,7 @@ def plot_training_accuracies(dir):
     plt.savefig(confidence_plot_path, dpi=300, bbox_inches='tight', edgecolor='black')
     plt.close()
 
+
 def plot_confidence_scores(dir):
     if os.path.isfile(f'{dir}/config.json'):
         with open(f'{dir}/config.json', 'r') as f:
@@ -220,21 +233,28 @@ def plot_confidence_scores(dir):
         'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
     })
     
-    fig, ax1 = plt.subplots(figsize=(14, 8))
+    fig, ax1 = plt.subplots(figsize=(8, 5))
     
     # Primary y-axis: Weighted accuracy bars (accuracy × percentage)
-    bars = ax1.bar(unique_confs, weighted_values_to_plot, width=0.6, alpha=0.7, 
-                  color='green', edgecolor='black', capsize=5)
-    
+    bars = ax1.bar(unique_confs, weighted_values_to_plot, width=0.9, alpha=0.7, 
+                  color='green', edgecolor='black')
+    plt.xticks(np.arange(min(unique_confs), max(unique_confs)+1, 3))
+
     # Add hatches to confident score bars
     for i, prob in enumerate(weighted_prob):
         if prob in confident_scores:
             bars[i].set_hatch('ooo')
     
-    ax1.set_xlabel('Confidence Score')
-    ax1.set_ylabel('P(Correct|Confidence) × Sample %', color='black')
+    # ax1.set_xlabel('Confidence Score')
+    ax1.set_xlabel('Active neurons')
+    # ax1.set_ylabel('P(Correct|Confidence) × Sample %', color='black')
+    ax1.set_ylabel('Confidence', color='black')
+
     max_weighted = max(weighted_values_to_plot) if len(weighted_values_to_plot) > 0 else 1
-    ax1.set_ylim([0, max_weighted * 1.2])
+    max_confs = max(unique_confs)
+
+    ax1.set_ylim([0, max_weighted * 1.1])
+    ax1.set_xlim([0, max_confs-1])
     ax1.tick_params(axis='y', labelcolor='black')
     
     # Fit Gaussian model to confidence scores
@@ -245,24 +265,18 @@ def plot_confidence_scores(dir):
     if len(confidence_data_for_fitting) > 0:
         # Fit Gaussian distribution
         mu, sigma = norm.fit(confidence_data_for_fitting)
-        
-        # Create smooth curve for overlay
-        x_smooth = np.linspace(min(unique_confs), max(unique_confs), 200)
-        gaussian_curve = norm.pdf(x_smooth, mu, sigma)
-        
-        # Scale Gaussian curve to match the weighted values scale
-        scale_factor = max_weighted * 0.8  # Scale to 80% of max for visibility
-        gaussian_curve_scaled = gaussian_curve * scale_factor / max(gaussian_curve)
-        
-        # Plot Gaussian curve overlay
-        ax1.plot(x_smooth, gaussian_curve_scaled, 'b-', linewidth=3, 
-                label='Gaussian Fit', alpha=0.8)
-        
-        # Add legend
-        ax1.legend(loc='upper right')
-        
         print(f'Gaussian fit: μ = {mu:.4f}, σ = {sigma:.4f}')
-    
+
+    # --- ADDED LEGEND FOR HATCHED BARS ---
+    # We create a manual patch to represent the hatched style in the legend
+    legend_elements = [
+        Patch(facecolor='green', edgecolor='black', alpha=0.85, 
+              hatch='ooo', label='Confident Act')
+    ]
+    # Place legend (you can adjust loc='upper right' or 'upper left')
+    ax1.legend(handles=legend_elements, loc='lower left', fontsize=27)
+    # -------------------------------------
+
     # Style the plot borders
     for spine in ax1.spines.values():
         spine.set_edgecolor('black')
@@ -274,3 +288,198 @@ def plot_confidence_scores(dir):
     plt.close()
     
     print(f"Confidence plot saved: {confidence_plot_path}")
+
+
+def plot_retraining_comparison_bars(directory, filename):
+    
+    """
+    Reads accuracy CSVs, splits data based on RETRAIN_BATCH, and plots
+    a grouped bar chart.
+    
+    Style: 
+    - Bars for the same model share the same base color.
+    - Pre-Retrain: Lighter alpha + Hatched pattern.
+    - Post-Retrain: Solid color.
+    """
+    
+    # 1. Load Configuration
+    config_path = os.path.join(directory, 'config.json')
+    if os.path.isfile(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    else:
+        raise FileNotFoundError(f"Config file not found in {directory}")
+
+    RETRAIN_BATCH = config.get('RETRAIN_BATCH', 0)
+    DATASET_SWITCH_END = config.get('DATASET_SWITCH_END', 0)
+    
+    split_index_end = max(0, RETRAIN_BATCH - 1)
+    split_index_start = max(0, DATASET_SWITCH_END - 1)
+
+    # 2. Load Data
+    models_data = []
+
+    # -- Teacher / MLP
+    try:
+        mlp_acc = pd.read_csv(os.path.join(directory, 'mlp_accuracies.csv'))['accuracy'].tolist()
+        models_data.append({'name': 'MLP', 'data': mlp_acc})
+    except FileNotFoundError:
+        print("Warning: mlp_accuracies.csv not found.")
+
+    # -- BNN SHAP
+    try:
+        shap_acc = pd.read_csv(os.path.join(directory, 'bnn_shap_accuracies.csv'))['accuracy'].tolist()
+        models_data.append({'name': 'SHAP', 'data': shap_acc})
+    except FileNotFoundError:
+        print("Warning: bnn_shap_accuracies.csv not found.")
+
+    # -- BNN Random
+    try:
+        rand_acc = pd.read_csv(os.path.join(directory, 'bnn_random_accuracies.csv'))['accuracy'].tolist()
+        models_data.append({'name': 'RND', 'data': rand_acc})
+    except FileNotFoundError:
+        pass # Silent fail if disabled
+
+    # -- BNN No Conf
+    try:
+        no_conf_acc = pd.read_csv(os.path.join(directory, 'bnn_shap_no_conf_accuracies.csv'))['accuracy'].tolist()
+        models_data.append({'name': 'No Conf', 'data': no_conf_acc})
+    except FileNotFoundError:
+        pass # Silent fail if disabled
+
+    # 3. Calculate Stats
+    labels = []
+    means_before = []
+    stds_before = []
+    means_after = []
+    stds_after = []
+
+    for model in models_data:
+        data = model['data']
+        name = model['name']
+        
+        data_before = data[split_index_start:split_index_end]
+        data_after = data[split_index_end:]
+
+        if not data_before:
+            mean_b, std_b = 0, 0
+        else:
+            mean_b, std_b = np.mean(data_before), np.std(data_before)
+
+        if not data_after:
+            mean_a, std_a = 0, 0
+        else:
+            mean_a, std_a = np.mean(data_after), np.std(data_after)
+
+        labels.append(name)
+        means_before.append(mean_b)
+        stds_before.append(std_b)
+        means_after.append(mean_a)
+        stds_after.append(std_a)
+
+    # 4. Plotting
+    plt.rcParams.update({
+        'font.size': 30,
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+    })
+    
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    x = np.arange(len(labels))
+    width = 0.4
+
+    # --- DEFINE COLORS ---
+    # Distinct colors for each model (Blue, Orange, Green, Red)
+    # You can add more colors to this list if you have more than 4 models
+    base_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+    
+    # Slice the color list to match the number of models we actually found
+    model_colors = base_colors[:len(labels)]
+
+    # --- PLOT BARS ---
+    
+    # 1. Pre-Retrain Bars (Left)
+    # Style: Lower Alpha (lighter), Hatched pattern
+    rects1 = ax.bar(x - width/2, means_before, width, 
+                    yerr=stds_before, capsize=5, 
+                    color=model_colors,      # Color by Model
+                    alpha=0.6,               # Lighter transparency
+                    hatch='///',             # Diagonal hatch
+                    edgecolor='black',       # Sharp borders
+                    # linewidth=1.5
+                    )
+    
+    # 2. Post-Retrain Bars (Right)
+    # Style: Full Alpha (darker/vibrant), No hatch
+    rects2 = ax.bar(x + width/2, means_after, width, 
+                    yerr=stds_after, capsize=5, 
+                    color=model_colors,      # Color by Model
+                    alpha=1.0,               # Full color
+                    hatch='',                # Solid
+                    edgecolor='black',       # Sharp borders
+                    # linewidth=1.5
+                    )
+
+    # --- AESTHETICS ---
+    ax.set_ylabel('Accuracy')
+    ax.set_xlabel('Models')
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_ylim(0.55, 1.02) # Adjusted upper limit slightly for error bars
+    
+    # Grid
+    ax.yaxis.grid(True, linestyle='--', alpha=0.5, zorder=0)
+    ax.set_axisbelow(True) # Puts grid behind bars
+
+    # --- CUSTOM LEGEND ---
+    # Since bars are multicolored, we create a neutral legend to explain the pattern
+    legend_elements = [
+        Patch(facecolor='white', edgecolor='black', hatch='///', label='Pre-Retrain'),
+        Patch(facecolor='gray', edgecolor='black', label='Post-Retrain')
+    ]
+    
+    ax.legend(handles=legend_elements, fontsize=28, loc='lower left')
+
+    plt.tight_layout()
+
+    save_path = os.path.join(directory, f'bnn_gradual_{filename}.png')
+    plt.savefig(save_path)
+    print(f"Plot saved to {save_path}")
+    # plt.show()
+
+def basic_stats(dir):
+    config_path = os.path.join(dir, 'config.json')
+    if os.path.isfile(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    else:
+        raise FileNotFoundError(f"Config file not found in {dir}")
+
+    RETRAIN_BATCH = config.get('RETRAIN_BATCH', 0)-1
+    DATASET_SWITCH_END = config.get('DATASET_SWITCH_END', 0)-1
+    DATASET_SWITCH_START = config.get('DATASET_SWITCH_START', 0)-1
+
+    rand_accuracies = pd.read_csv(f'{dir}/bnn_random_accuracies.csv')['accuracy'].tolist()
+    shap_accuracies = pd.read_csv(f'{dir}/bnn_shap_accuracies.csv')['accuracy'].tolist()
+    teacher_accuracies = pd.read_csv(f'{dir}/mlp_accuracies.csv')['accuracy'].tolist()
+    shap_accuracies_no_conf = pd.read_csv(f'{dir}/bnn_shap_no_conf_accuracies.csv')['accuracy'].tolist()
+
+    acc_list = {
+        'teacher_accuracies':teacher_accuracies,
+        'shap_accuracies': shap_accuracies,
+        'shap_accuracies_no_conf': shap_accuracies_no_conf,
+        'rand_accuracies': rand_accuracies
+    }
+
+    print()
+    print(f'********* STATS *********')
+    for acc_name,acc in acc_list.items():
+        print(f'{acc_name}:')
+        print(f'\tmean pre-distribution shift: {np.mean(acc[:DATASET_SWITCH_START])}')
+        print(f'\tmean post-distribution shift pre-retraining: {np.mean(acc[DATASET_SWITCH_END:RETRAIN_BATCH])}')
+        print(f'\tmean post-distribution shift post-retraining: {np.mean(acc[RETRAIN_BATCH:])}')
+        print(f'\tmax  pre-retraining: {np.max(acc[DATASET_SWITCH_END:RETRAIN_BATCH])}')
+        print(f'\tmax  post-retraining: {np.max(acc[RETRAIN_BATCH:])}')
+        print()
+
