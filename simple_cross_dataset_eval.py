@@ -169,7 +169,6 @@ def main():
     global RES_DIR
     ARCH = args.arch
     RES_DIR = f'results/simple_cross_dataset_eval_{ARCH}'
-    ENABLE_RANDOM_BNN = True
 
     print('Create results dir...',end='')
     os.makedirs(RES_DIR, exist_ok=True)
@@ -218,11 +217,8 @@ def main():
     print(f"Features: {X_tr.shape[1]}")
 
     print("\nInit TF BNN Random")
-    if ENABLE_RANDOM_BNN:
-        bnn_rand = SimpleTrainer('tf_rand_bnn', ARCH, 'cpu')
-        bnn_rand.reset_model()  # Use default BNN input size
-    else:
-        bnn_rand = None
+    bnn_rand = SimpleTrainer('tf_rand_bnn', ARCH, 'cpu')
+    bnn_rand.reset_model()  # Use default BNN input size
     
     print("\nInit TF BNN SHAP")
     bnn_shap = SimpleTrainer('tf_bnn_shap', ARCH, 'cpu')
@@ -232,22 +228,17 @@ def main():
     teacher = SimpleTrainer('mlp', ARCH, 'cpu')
     teacher.reset_model(X_tr.shape[1])
     
-    if ENABLE_RANDOM_BNN:
-        print(f'BNN random model input size: {bnn_rand.nn_input_size} features')
+    print(f'BNN random model input size: {bnn_rand.nn_input_size} features')
     print(f'BNN SHAP model input size: {bnn_shap.nn_input_size} features')
     print(f'MLP model input size: {X_tr.shape[1]} features')
 
     # Select random features for random BNN
-    if ENABLE_RANDOM_BNN:
-        random_feat_idx = np.random.choice(X_tr.shape[1], bnn_rand.nn_input_size, replace=False)
-        print(f"Selected random features: {random_feat_idx[:10]}...")  # Show first 10
+    random_feat_idx = np.random.choice(X_tr.shape[1], bnn_rand.nn_input_size, replace=False)
+    print(f"Selected random features: {random_feat_idx[:10]}...")  # Show first 10
 
-        print("\nTraining BNN random model (random features)")
-        res=bnn_rand.train(X_tr[:, random_feat_idx], Y_tr, verbose=True)  # Use random features
-        pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/bnn_shap_train_rand_accuracies.csv')
-
-    else:
-        random_feat_idx = None
+    print("\nTraining BNN random model (random features)")
+    res=bnn_rand.train(X_tr[:, random_feat_idx], Y_tr, verbose=True)  # Use random features
+    pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/bnn_shap_train_rand_accuracies.csv')
 
     # Train MLP teacher on the same training split
     print("\nTraining MLP teacher...")
@@ -269,7 +260,7 @@ def main():
     # Use MLP teacher for SHAP computation
     print("\nUsing MLP teacher for SHAP computation...")
     from ml_helpers.shap_explainer import ShapExplainer
-    shap_result, indices_file = ShapExplainer.run_from_trainer(teacher, force_recompute=True, use_eval=False, out_dir=f'{RES_DIR}/shap_results')
+    _, indices_file = ShapExplainer.run_from_trainer(teacher, force_recompute=True, use_eval=False, out_dir=f'{RES_DIR}/shap_results')
     import json
     with open(indices_file, 'r') as f:
         shap_data = json.load(f)
@@ -284,7 +275,7 @@ def main():
 
     print("\nAnalyzing BNN SHAP confidence distribution...")
     X_val_shaped_shap = X_val_merged[:, shap_feat_idx]
-    confidences_shap, correct_preds_shap, confident_score_array_shap = analyze_confidence_distribution(bnn_shap, X_val_shaped_shap, Y_val_merged)
+    _, _, confident_score_array_shap = analyze_confidence_distribution(bnn_shap, X_val_shaped_shap, Y_val_merged)
 
     # Initialize critical sample collection for SHAP BNN retraining
     critical_samples_X = []
@@ -293,8 +284,6 @@ def main():
     retraining_completed = False
 
     # Prepare evaluation batches
-
-    
     # distribution shift starting point
     shift_start_batch = DATASET_SWITCH_START
     # max distribution shift point
@@ -370,10 +359,12 @@ def main():
     
     print(f"\nEvaluating on {N_BATCHES} batches ({BATCH_SIZE} samples each)")
     
-    rand_accuracies = []
-    shap_accuracies = []
-    teacher_accuracies = []
-    shap_no_acc_accuracies = []
+    rand_preds = []
+    shap_preds = []
+    teacher_preds = []
+    shap_no_conf_preds = []
+    targets = []
+    batches = []
 
     X_evaluation_samples_so_far = []
     Y_evaluation_samples_so_far = []
@@ -382,17 +373,18 @@ def main():
     for i in range(N_BATCHES):
         batch_X = eval_batches_X[i]
         batch_Y = eval_batches_Y[i]
+        targets.extend(batch_Y)
+        batches.extend([i+1]*len(batch_Y))
 
         if not retraining_completed:
             X_evaluation_samples_so_far.extend(batch_X)
             Y_evaluation_samples_so_far.extend(batch_Y)
 
-        if ENABLE_RANDOM_BNN:
-            rand_res = bnn_rand.eval_model(batch_X[:, random_feat_idx], batch_Y, verbose=False)
-            rand_accuracies.append(rand_res['accuracy'])
+        rand_eval = bnn_rand.eval_model(batch_X[:, random_feat_idx], batch_Y, verbose=False)
+        rand_preds.extend(rand_eval['predictions'])
         
-        teacher_res = teacher.eval_model(batch_X, batch_Y, verbose=False)
-        teacher_accuracies.append(teacher_res['accuracy'])
+        teacher_eval = teacher.eval_model(batch_X, batch_Y, verbose=False)
+        teacher_preds.extend(teacher_eval['predictions'])
 
         # Collect critical samples for SHAP BNN before retraining
         if not retraining_completed and len(critical_samples_X) < CRITICAL_SAMPLES_WINDOW:
@@ -411,13 +403,16 @@ def main():
 
         # Retrain SHAP BNN when enough critical samples are gathered
         if not retraining_completed and len(critical_samples_X) >= CRITICAL_SAMPLES_WINDOW:
-            retrain_batch = i + 1
-            retraining_completed = True
             print(f"\nRetraining SHAP BNN with {len(critical_samples_X)} critical samples at batch {retrain_batch}...")
             
+            retrain_batch = i + 1
+            retraining_completed = True
+
+            # Copy predictions and accuracies up to this point since the two madels will diverge after retraining only
+            shap_no_conf_preds = shap_preds.copy()
+
             # Take 100,000 samples from original training data
             retrain_samples = 95000
-            # retrain_samples = 70000
             if len(X_tr) >= retrain_samples:
                 retrain_indices = np.random.choice(len(X_tr), retrain_samples, replace=False)
                 retrain_og_X = X_tr[retrain_indices]
@@ -468,32 +463,49 @@ def main():
         
         # Evaluate SHAP BNN (use retrained model if available)
         if retraining_completed:
-            shap_no_conf = retrained_bnn_shap_no_conf.eval_model(batch_X[:, shap_feat_idx], batch_Y, verbose=False)
-            shap_no_acc_accuracies.append(shap_no_conf['accuracy'])
+            shap_no_conf_eval = retrained_bnn_shap_no_conf.eval_model(batch_X[:, shap_feat_idx], batch_Y, verbose=False)
+            shap_no_conf_preds.extend(shap_no_conf_eval['predictions'])
             
             print('Retrained model available. Take it')
             current_shap_model = retrained_bnn_shap
         else:
             current_shap_model = bnn_shap
-        shap_res = current_shap_model.eval_model(batch_X[:, shap_feat_idx], batch_Y, verbose=False)
-        shap_accuracies.append(shap_res['accuracy'])
+        shap_eval = current_shap_model.eval_model(batch_X[:, shap_feat_idx], batch_Y, verbose=False)
+        shap_preds.extend(shap_eval['predictions'])
 
         retrain_flag = "[RETRAINED]" if i + 1 == retrain_batch else ""
         critical_count_info = f"(Critical: {len(critical_samples_X)})" if not retraining_completed else ""
         unsw_pct = unsw_fractions[i] * 100
         
-        if ENABLE_RANDOM_BNN:
-            print(f"Batch {i+1:2d} ({unsw_pct:.1f}% UNSW) - BNN Random: {rand_res['accuracy']:.3f}, BNN SHAP: {shap_res['accuracy']:.3f}, MLP: {teacher_res['accuracy']:.3f} {critical_count_info} {retrain_flag}")
-        else:
-            print(f"Batch {i+1:2d} ({unsw_pct:.1f}% UNSW) - BNN SHAP: {shap_res['accuracy']:.3f}, MLP: {teacher_res['accuracy']:.3f} {critical_count_info} {retrain_flag}")
+        print(f"Batch {i+1:2d} ({unsw_pct:.1f}% UNSW) - BNN Random: {rand_eval['accuracy']:.3f}, BNN SHAP: {shap_eval['accuracy']:.3f}, MLP: {teacher_eval['accuracy']:.3f} {critical_count_info} {retrain_flag}")
 
     os.makedirs(RES_DIR, exist_ok=True)
-    pd.DataFrame(rand_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/bnn_random_accuracies.csv')
-    pd.DataFrame(teacher_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/mlp_accuracies.csv')
-    pd.DataFrame(shap_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/bnn_shap_accuracies.csv')
-    shap_no_acc_accuracies = np.concatenate([shap_accuracies[:retrain_batch-1],shap_no_acc_accuracies])
-    pd.DataFrame(shap_no_acc_accuracies, columns=['accuracy']).to_csv(f'{RES_DIR}/bnn_shap_no_conf_accuracies.csv')
-    
+
+    shap_results = {
+        'batch': batches,
+        'targets': targets,
+        'predictions': shap_preds,
+    }
+    shap_no_conf_results = {
+        'batch': batches,
+        'targets': targets,
+        'predictions': shap_no_conf_preds,
+    }
+    teacher_results = {
+        'batch': batches,
+        'targets': targets,
+        'predictions': teacher_preds,
+    }
+    rand_results = {
+        'batch': batches,
+        'targets': targets,
+        'predictions': rand_preds,
+    }
+    pd.DataFrame(shap_results).to_csv(f'{RES_DIR}/bnn_shap_results.csv', index=False)
+    pd.DataFrame(shap_no_conf_results).to_csv(f'{RES_DIR}/bnn_shap_no_conf_results.csv', index=False)
+    pd.DataFrame(teacher_results).to_csv(f'{RES_DIR}/mlp_results.csv', index=False)
+    pd.DataFrame(rand_results).to_csv(f'{RES_DIR}/bnn_random_results.csv', index=False)
+
     with open(f'{RES_DIR}/config.json', 'w') as f:
         curr_config = {
             'MAX_UNSW_FRACTION': MAX_UNSW_FRACTION,
@@ -502,57 +514,9 @@ def main():
             'CRITICAL_SAMPLES_WINDOW': CRITICAL_SAMPLES_WINDOW,
             'N_BATCHES': N_BATCHES,
             'BATCH_SIZE': BATCH_SIZE,
-            'ENABLE_RANDOM_BNN': ENABLE_RANDOM_BNN,
             'RETRAIN_BATCH': retrain_batch,
         }
         json.dump(curr_config, f)
-    
-    # Summary by phase - Domain shift analysis without retraining
-    if ENABLE_RANDOM_BNN:
-        pure_cic_acc_rand = np.mean([acc for i, acc in enumerate(rand_accuracies) if i < shift_start_batch])
-        gradual_shift_acc_rand = np.mean([acc for i, acc in enumerate(rand_accuracies) if shift_start_batch <= i < max_percentage_batch])
-        max_shift_acc_rand = np.mean([acc for i, acc in enumerate(rand_accuracies) if i >= max_percentage_batch])
-        
-        print(f"\nBNN (random) Summary:")
-        print(f"Pure CICIDS2017 accuracy: {pure_cic_acc_rand:.3f}")
-        print(f"Gradual shift accuracy: {gradual_shift_acc_rand:.3f}")
-        print(f"Max shift accuracy ({MAX_UNSW_FRACTION*100:.0f}% UNSW): {max_shift_acc_rand:.3f}")
-        print(f"Total performance drop: {pure_cic_acc_rand - max_shift_acc_rand:.3f}")
-
-    # BNN SHAP summary
-    pure_cic_acc_shap = np.mean([acc for i, acc in enumerate(shap_accuracies) if i < shift_start_batch])
-    gradual_shift_acc_shap = np.mean([acc for i, acc in enumerate(shap_accuracies) if shift_start_batch <= i < max_percentage_batch])
-    max_shift_acc_shap = np.mean([acc for i, acc in enumerate(shap_accuracies) if i >= max_percentage_batch])
-    
-    # Calculate post-retraining metrics if retraining occurred
-    if retrain_batch > 0 and retrain_batch < len(shap_accuracies):
-        post_retrain_accuracies = [acc for i, acc in enumerate(shap_accuracies) if i >= retrain_batch]
-        post_retrain_avg_acc = np.mean(post_retrain_accuracies)
-        post_retrain_max_acc = np.max(post_retrain_accuracies)
-        avg_accuracy_increase = post_retrain_avg_acc - max_shift_acc_shap
-    else:
-        post_retrain_avg_acc = None
-        post_retrain_max_acc = None
-        avg_accuracy_increase = None
-    
-    print(f"\nBNN (SHAP) Summary:")
-    print(f"Pure CICIDS2017 accuracy: {pure_cic_acc_shap:.3f}")
-    print(f"Gradual shift accuracy: {gradual_shift_acc_shap:.3f}")
-    print(f"Max shift accuracy ({MAX_UNSW_FRACTION*100:.0f}% UNSW): {max_shift_acc_shap:.3f}")
-    if post_retrain_avg_acc is not None:
-        print(f"Post-retraining average accuracy: {post_retrain_avg_acc:.3f}")
-        print(f"Post-retraining maximum accuracy: {post_retrain_max_acc:.3f}")
-        print(f"Average accuracy increase after retraining: {avg_accuracy_increase:+.3f}")
-    print(f"Total performance drop: {pure_cic_acc_shap - max_shift_acc_shap:.3f}")
-
-    pure_cic_acc_teacher = np.mean([acc for i, acc in enumerate(teacher_accuracies) if i < shift_start_batch])
-    gradual_shift_acc_teacher = np.mean([acc for i, acc in enumerate(teacher_accuracies) if shift_start_batch <= i < max_percentage_batch])
-    max_shift_acc_teacher = np.mean([acc for i, acc in enumerate(teacher_accuracies) if i >= max_percentage_batch])
-    print(f"\nMLP Summary:")
-    print(f"Pure CICIDS2017 accuracy: {pure_cic_acc_teacher:.3f}")
-    print(f"Gradual shift accuracy: {gradual_shift_acc_teacher:.3f}")
-    print(f"Max shift accuracy ({MAX_UNSW_FRACTION*100:.0f}% UNSW): {max_shift_acc_teacher:.3f}")
-    print(f"Total performance drop: {pure_cic_acc_teacher - max_shift_acc_teacher:.3f}")
 
 
 if __name__ == "__main__":

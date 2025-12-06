@@ -13,7 +13,8 @@ def main():
     plot_distribution_shift_bnn(args.dir, enable_bnn_no_conf_plot=True, filename='with_no_conf')
 
     plot_confidence_scores(args.dir)
-    plot_training_accuracies(args.dir)
+    plot_training_accuracies(args.dir, filename='bnn_shap_train_accuracies.csv', out='bnn_shap')
+    plot_training_accuracies(args.dir, filename='bnn_shap_train_rand_accuracies.csv', out='bnn_rand')
 
     plot_retraining_comparison_bars(args.dir, filename='comparison')
 

@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import json
 import pandas as pd
 from scipy.stats import norm
-from matplotlib.patches import Patch  # <--- Added this import
+from matplotlib.patches import Patch 
+import sklearn.metrics as metrics
 
 def suppress_warnings():
     # Suppress brevitas Warning
@@ -66,10 +67,30 @@ def get_file_from_keyword(directory, keyword):
             return file
     return None
 
-def plot_distribution_shift_bnn(dir, filename, enable_bnn_random_plot=False, enable_bnn_no_conf_plot=False):
-    if os.path.isfile(f'{dir}/config.json'):
-        with open(f'{dir}/config.json', 'r') as f:
+def load_models_results(dir):
+    shap_res = pd.read_csv(f'{dir}/bnn_shap_results.csv')
+    rand_res = pd.read_csv(f'{dir}/bnn_random_results.csv')
+    teacher_res = pd.read_csv(f'{dir}/mlp_results.csv')
+    shap_no_conf_res = pd.read_csv(f'{dir}/bnn_shap_no_conf_results.csv')
+    return shap_res, rand_res, teacher_res, shap_no_conf_res
+
+def load_config(dir):
+    config_path = os.path.join(dir, 'config.json')
+    if os.path.isfile(config_path):
+        with open(config_path, 'r') as f:
             config = json.load(f)
+    else:
+        raise FileNotFoundError(f"Config file not found in {dir}")
+    return config
+
+def plot_distribution_shift_bnn(dir, filename, enable_bnn_random_plot=False, enable_bnn_no_conf_plot=False):
+    config = load_config(dir)
+    shap_res, rand_res, teacher_res, shap_no_conf_res = load_models_results(dir)
+
+    shap_accuracies = (shap_res['predictions'] == shap_res['targets']).groupby(shap_res['batch']).mean().to_list()
+    rand_accuracies = (rand_res['predictions'] == rand_res['targets']).groupby(rand_res['batch']).mean().to_list()
+    teacher_accuracies = (teacher_res['predictions'] == teacher_res['targets']).groupby(teacher_res['batch']).mean().to_list()
+    shap_accuracies_no_conf = (shap_no_conf_res['predictions'] == shap_no_conf_res['targets']).groupby(shap_no_conf_res['batch']).mean().to_list()
 
     MAX_UNSW_FRACTION = config['MAX_UNSW_FRACTION']
     DATASET_SWITCH_START = config['DATASET_SWITCH_START']
@@ -78,10 +99,19 @@ def plot_distribution_shift_bnn(dir, filename, enable_bnn_random_plot=False, ena
     ENABLE_RANDOM_BNN = enable_bnn_random_plot
     ENABLE_NO_CONF_BNN = enable_bnn_no_conf_plot
 
-    rand_accuracies = pd.read_csv(f'{dir}/bnn_random_accuracies.csv')['accuracy'].tolist() if ENABLE_RANDOM_BNN else []
-    shap_accuracies = pd.read_csv(f'{dir}/bnn_shap_accuracies.csv')['accuracy'].tolist()
-    teacher_accuracies = pd.read_csv(f'{dir}/mlp_accuracies.csv')['accuracy'].tolist()
-    shap_accuracies_no_conf = pd.read_csv(f'{dir}/bnn_shap_no_conf_accuracies.csv')['accuracy'].tolist() if ENABLE_NO_CONF_BNN else []
+    shap_accuracies = pd.read_csv(f'{dir}/bnn_shap_results.csv')
+    shap_accuracies = (shap_accuracies['predictions'] == shap_accuracies['targets']).groupby(shap_accuracies['batch']).mean().to_list()
+    
+    rand_accuracies = pd.read_csv(f'{dir}/bnn_random_results.csv')
+    if ENABLE_RANDOM_BNN:
+        rand_accuracies = (rand_accuracies['predictions'] == rand_accuracies['targets']).groupby(rand_accuracies['batch']).mean().to_list()
+    
+    teacher_accuracies = pd.read_csv(f'{dir}/mlp_results.csv')
+    teacher_accuracies = (teacher_accuracies['predictions'] == teacher_accuracies['targets']).groupby(teacher_accuracies['batch']).mean().to_list()
+
+    shap_accuracies_no_conf = pd.read_csv(f'{dir}/bnn_shap_no_conf_results.csv')
+    if ENABLE_NO_CONF_BNN:
+        shap_accuracies_no_conf = (shap_accuracies_no_conf['predictions'] == shap_accuracies_no_conf['targets']).groupby(shap_accuracies_no_conf['batch']).mean().to_list()
 
     # Apply rolling average of last 5 batches for smoother plotting
     window_size = 10
@@ -165,14 +195,14 @@ def plot_distribution_shift_bnn(dir, filename, enable_bnn_random_plot=False, ena
     print(f"\nPlot saved to {out_path}")
 
 
-def plot_training_accuracies(dir):
+def plot_training_accuracies(dir, filename, out):
     """
     Plot training accuracy per epoch with a rolling average (window=6).
 
     Args:
         accuracies (list or array-like): list of accuracy values, one per epoch.
     """
-    accuracies = pd.read_csv(f'{dir}/bnn_shap_train_accuracies.csv')['batch_accuracies'].tolist()
+    accuracies = pd.read_csv(f'{dir}/{filename}')['batch_accuracies'].tolist()
 
     if accuracies is None or len(accuracies) == 0:
         print("No accuracies to plot.")
@@ -209,15 +239,12 @@ def plot_training_accuracies(dir):
 
     ax.legend(loc='lower right', fontsize=26)
     plt.tight_layout()
-    confidence_plot_path = f'{dir}/bnn_gradual_training.png'
+    confidence_plot_path = f'{dir}/{out}_bnn_training_accuracies.png'
     plt.savefig(confidence_plot_path, dpi=300, bbox_inches='tight', edgecolor='black')
     plt.close()
 
 
 def plot_confidence_scores(dir):
-    if os.path.isfile(f'{dir}/config.json'):
-        with open(f'{dir}/config.json', 'r') as f:
-            config = json.load(f)
     
     unique_confs = pd.read_csv(f'{dir}/unique_confidences.csv')['confidence'].tolist()
     weighted_values_to_plot = pd.read_csv(f'{dir}/weighted_values.csv')['weighted_value'].tolist()
@@ -303,12 +330,8 @@ def plot_retraining_comparison_bars(directory, filename):
     """
     
     # 1. Load Configuration
-    config_path = os.path.join(directory, 'config.json')
-    if os.path.isfile(config_path):
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-    else:
-        raise FileNotFoundError(f"Config file not found in {directory}")
+    config = load_config(directory)
+    shap_res, rand_res, teacher_res, shap_no_conf_res = load_models_results(directory)
 
     RETRAIN_BATCH = config.get('RETRAIN_BATCH', 0)
     DATASET_SWITCH_END = config.get('DATASET_SWITCH_END', 0)
@@ -321,28 +344,28 @@ def plot_retraining_comparison_bars(directory, filename):
 
     # -- Teacher / MLP
     try:
-        mlp_acc = pd.read_csv(os.path.join(directory, 'mlp_accuracies.csv'))['accuracy'].tolist()
+        mlp_acc = (teacher_res['predictions'] == teacher_res['targets']).groupby(teacher_res['batch']).mean().to_list()
         models_data.append({'name': 'MLP', 'data': mlp_acc})
     except FileNotFoundError:
         print("Warning: mlp_accuracies.csv not found.")
 
     # -- BNN SHAP
     try:
-        shap_acc = pd.read_csv(os.path.join(directory, 'bnn_shap_accuracies.csv'))['accuracy'].tolist()
+        shap_acc = (shap_res['predictions'] == shap_res['targets']).groupby(shap_res['batch']).mean().to_list()
         models_data.append({'name': 'SHAP', 'data': shap_acc})
     except FileNotFoundError:
         print("Warning: bnn_shap_accuracies.csv not found.")
 
     # -- BNN Random
     try:
-        rand_acc = pd.read_csv(os.path.join(directory, 'bnn_random_accuracies.csv'))['accuracy'].tolist()
+        rand_acc = (rand_res['predictions'] == rand_res['targets']).groupby(rand_res['batch']).mean().to_list()
         models_data.append({'name': 'RND', 'data': rand_acc})
     except FileNotFoundError:
         pass # Silent fail if disabled
 
     # -- BNN No Conf
     try:
-        no_conf_acc = pd.read_csv(os.path.join(directory, 'bnn_shap_no_conf_accuracies.csv'))['accuracy'].tolist()
+        no_conf_acc = (shap_no_conf_res['predictions'] == shap_no_conf_res['targets']).groupby(shap_no_conf_res['batch']).mean().to_list()
         models_data.append({'name': 'No Conf', 'data': no_conf_acc})
     except FileNotFoundError:
         pass # Silent fail if disabled
@@ -449,21 +472,17 @@ def plot_retraining_comparison_bars(directory, filename):
     # plt.show()
 
 def basic_stats(dir):
-    config_path = os.path.join(dir, 'config.json')
-    if os.path.isfile(config_path):
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-    else:
-        raise FileNotFoundError(f"Config file not found in {dir}")
+    config= load_config(dir)
+    shap_res, rand_res, teacher_res, shap_no_conf_res = load_models_results(dir)
+
+    shap_accuracies = (shap_res['predictions'] == shap_res['targets']).groupby(shap_res['batch']).mean().to_list()
+    rand_accuracies = (rand_res['predictions'] == rand_res['targets']).groupby(rand_res['batch']).mean().to_list()
+    teacher_accuracies = (teacher_res['predictions'] == teacher_res['targets']).groupby(teacher_res['batch']).mean().to_list()
+    shap_accuracies_no_conf = (shap_no_conf_res['predictions'] == shap_no_conf_res['targets']).groupby(shap_no_conf_res['batch']).mean().to_list()
 
     RETRAIN_BATCH = config.get('RETRAIN_BATCH', 0)-1
     DATASET_SWITCH_END = config.get('DATASET_SWITCH_END', 0)-1
     DATASET_SWITCH_START = config.get('DATASET_SWITCH_START', 0)-1
-
-    rand_accuracies = pd.read_csv(f'{dir}/bnn_random_accuracies.csv')['accuracy'].tolist()
-    shap_accuracies = pd.read_csv(f'{dir}/bnn_shap_accuracies.csv')['accuracy'].tolist()
-    teacher_accuracies = pd.read_csv(f'{dir}/mlp_accuracies.csv')['accuracy'].tolist()
-    shap_accuracies_no_conf = pd.read_csv(f'{dir}/bnn_shap_no_conf_accuracies.csv')['accuracy'].tolist()
 
     acc_list = {
         'teacher_accuracies':teacher_accuracies,
