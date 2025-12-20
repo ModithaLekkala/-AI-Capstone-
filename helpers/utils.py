@@ -248,8 +248,6 @@ def plot_confidence_scores(dir):
     
     unique_confs = pd.read_csv(f'{dir}/unique_confidences.csv')['confidence'].tolist()
     weighted_values_to_plot = pd.read_csv(f'{dir}/weighted_values.csv')['weighted_value'].tolist()
-    confidence_counts_df = pd.read_csv(f'{dir}/confidence_counts.csv')
-    confidence_counts = dict(zip(confidence_counts_df['confidence'], confidence_counts_df['count']))
     weighted_prob = pd.read_csv(f'{dir}/weighted_probabilities.csv')['weighted_prob'].tolist()
     confident_scores = pd.read_csv(f'{dir}/confident_scores.csv')['confident_score'].tolist()
 
@@ -284,16 +282,6 @@ def plot_confidence_scores(dir):
     ax1.set_xlim([0, max_confs-1])
     ax1.tick_params(axis='y', labelcolor='black')
     
-    # Fit Gaussian model to confidence scores
-    confidence_data_for_fitting = []
-    for conf, count in confidence_counts.items():
-        confidence_data_for_fitting.extend([conf] * count)
-    
-    if len(confidence_data_for_fitting) > 0:
-        # Fit Gaussian distribution
-        mu, sigma = norm.fit(confidence_data_for_fitting)
-        print(f'Gaussian fit: μ = {mu:.4f}, σ = {sigma:.4f}')
-
     # --- ADDED LEGEND FOR HATCHED BARS ---
     # We create a manual patch to represent the hatched style in the legend
     legend_elements = [
@@ -314,7 +302,7 @@ def plot_confidence_scores(dir):
     plt.savefig(confidence_plot_path, dpi=300, bbox_inches='tight', edgecolor='black')
     plt.close()
     
-    print(f"Confidence plot saved: {confidence_plot_path}")
+    print(f"Confidence plot saved to {confidence_plot_path}")
 
 
 def plot_retraining_comparison_bars(directory, filename):
