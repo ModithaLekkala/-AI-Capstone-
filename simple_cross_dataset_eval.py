@@ -3,7 +3,6 @@
 import os
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
@@ -84,7 +83,6 @@ def analyze_confidence_distribution(bnn_trainer: SimpleTrainer, X_val_shaped, Y_
         if hasattr(bnn_trainer, 'loss') and bnn_trainer.loss == 'SqrHinge':
             predictions = logits.argmax(1).round()
         else:
-            import torch.nn.functional as F
             probabilities = F.softmax(logits, dim=1)
             predictions = probabilities.argmax(1)
         
