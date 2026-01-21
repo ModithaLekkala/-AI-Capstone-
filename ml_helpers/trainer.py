@@ -17,7 +17,7 @@ import numpy as np
 
 from .losses import SqrHingeLoss
 
-from .models import smaller, deeper
+from .models import student, teacher
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 from sklearn.metrics import confusion_matrix
 
@@ -293,9 +293,9 @@ class Trainer():
         
         self.device = torch.device('cpu')
         if 'bnn' in self.model_name or 'distilled' in self.model_name:
-            self.model_f = smaller
+            self.model_f = student
         else:
-            self.model_f = deeper
+            self.model_f = teacher
         
         if self.distilled:
             teacher_cfg_name = self.cfg.get('DISTILLATION', 'TEACHER')
@@ -326,7 +326,7 @@ class Trainer():
             
             try:
                 weight = torch.load(self.teacher_path)
-                self.teacher = deeper(teacher_cfg, teach_nn_input_size) 
+                self.teacher = teacher(teacher_cfg, teach_nn_input_size) 
                 self.teacher.load_state_dict(weight)
             except Exception as e:
                 raise RuntimeError(f'CRITICAL ERROR: Failed to load teacher weights from {self.teacher_path}: {e}')

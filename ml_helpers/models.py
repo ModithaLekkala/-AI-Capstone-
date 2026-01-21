@@ -3,13 +3,15 @@ import brevitas.nn as qnn
 from .quantizer import CommonBinActQuant, CommonBinWeightQuant 
 import torch
 import torch.nn as nn
+from torch.autograd import Function
+
 
 DROPOUT = 0.4
 
 # control plane dnn
-class DeeperNN(nn.Module):
+class TeacherNN(nn.Module):
     def __init__(self, input_size, hidden_layers, output_size=2, last_act=None):
-        super(DeeperNN, self).__init__()
+        super(TeacherNN, self).__init__()
         self.features = nn.ModuleList()
         in_features=input_size
 
@@ -25,18 +27,19 @@ class DeeperNN(nn.Module):
         for mod in self.features:
             x = mod(x)
         return x
-    
-def deeper(cfg, input_size, ):
-    num_classes = cfg.getint('MODEL', 'NUM_CLASSES')
-    out_features = ast.literal_eval(cfg.get('MODEL', 'OUT_FEATURES'))
+
+def teacher(cfg, input_size, model_name):
+    model_name = model_name.upper()
+    num_classes = cfg.getint(model_name, 'NUM_CLASSES')
+    out_features = ast.literal_eval(cfg.get(model_name, 'OUT_FEATURES'))
     print(f"Loading full model: [{input_size}, {', '.join(str(i) for i in out_features)}, {num_classes}].")
-    net = DeeperNN(input_size, out_features, num_classes)
+    net = TeacherNN(input_size, out_features, num_classes)
     return net
     
 # data plane dnn
-class SmallerNN(nn.Module):
+class StudentBNN(nn.Module):
     def __init__(self, input_size, hidden_layers, output_size=2):
-        super(SmallerNN, self).__init__()
+        super(StudentBNN, self).__init__()
         self.n_layers = len(hidden_layers)+1
 
         self.features = nn.ModuleList()
@@ -50,7 +53,7 @@ class SmallerNN(nn.Module):
                     bias=False,
                     weight_quant=CommonBinWeightQuant))
             in_features = out_features
-            # self.features.append(nn.BatchNorm1d(num_features=in_features, momentum=0.9))
+            # self.features.append(nn.BatchNorm1d(num_features=in_features, momentum=0.9, affine=False))
             self.features.append(qnn.QuantIdentity(act_quant=CommonBinActQuant))
             self.features.append(nn.Dropout(p=DROPOUT))
 
@@ -86,9 +89,47 @@ class SmallerNN(nn.Module):
                 weights.append(bin_weights)
         return weights
     
-def smaller(cfg, input_size):
-    num_classes = cfg.getint('MODEL', 'NUM_CLASSES')
-    out_features = ast.literal_eval(cfg.get('MODEL', 'OUT_FEATURES'))
+def student(cfg, input_size, model_name):
+    model_name = model_name.upper()
+    num_classes = cfg.getint(model_name, 'NUM_CLASSES')
+    out_features = ast.literal_eval(cfg.get(model_name, 'OUT_FEATURES'))
     print(f"Loading binarized model: [{input_size}, {', '.join(str(i) for i in out_features)}, {num_classes}].")
-    net = SmallerNN(input_size, out_features, num_classes)
+    net = StudentBNN(input_size, out_features, num_classes)
+    return net
+
+class QuarkCNN(nn.Module):
+    def __init__(self, in_len: int):
+        super().__init__()
+
+        self.features = nn.Sequential(
+            qnn.QuantConv1d(1, 16, 3, padding=1, weight_bit_width=7),
+            qnn.QuantReLU(bit_width=7),
+            nn.MaxPool1d(2),
+
+            qnn.QuantConv1d(16, 16, 3, padding=1, weight_bit_width=7),
+            qnn.QuantReLU(bit_width=7),
+            nn.MaxPool1d(2),
+
+            qnn.QuantConv1d(16, 16, 3, padding=1, weight_bit_width=7),
+            qnn.QuantReLU(bit_width=7),
+            nn.MaxPool1d(2),
+        )
+
+        feat_len = in_len // 8
+        fc_in = 16 * feat_len
+
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            qnn.QuantLinear(fc_in, 16, weight_bit_width=7),
+            qnn.QuantReLU(bit_width=7),
+            qnn.QuantLinear(16, 2, weight_bit_width=7)
+        )
+
+    def forward(self, x):
+        if x.dim() == 2:
+            x = x.unsqueeze(1)
+        return self.classifier(self.features(x))
+def quark(cfg, input_size, model_name):
+    print(f"Loading QuarkCNNBinary model with input size {input_size}.")
+    net = QuarkCNN(input_size)
     return net

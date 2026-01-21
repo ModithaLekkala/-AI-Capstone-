@@ -31,3 +31,9 @@ After dependecies installation.
 ## File usage
 - client_send_flows.py: Simulate the tf_features_extr tofino pipeline by sending 168b long flows statistics. Dataset and selected features chosen by the file parameters.
 - client.py: Used to the the feature extractor. It reads packets from a PCAP file, identifies bidirectional TCP flows, and sends them through network interfaces while listening for responses. 
+
+
+`sudo docker run --privileged --rm -it -v $(pwd):/inet-hynn sde`
+`colima start`
+`colima start --arch x86_64 --cpu 4 --memory 8 --disk 100`
+

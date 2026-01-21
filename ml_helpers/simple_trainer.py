@@ -15,7 +15,7 @@ import copy
 
 from .utils import suppress_warnings, get_cfg
 from .losses import SqrHingeLoss
-from .models import smaller, deeper
+from .models import * 
 from .shap_explainer import ShapExplainer
 from .metrics import MetricsManager
 
@@ -26,22 +26,21 @@ class SimpleTrainer:
     Simplified trainer that operates directly on X, Y data without dataset initialization complexity.
     """
     
-    def __init__(self, model_name, model_arch, device='cpu'):
+    def __init__(self, model_name, device='cpu'):
         """
         Initialize SimpleTrainer with model configuration.
         
         Args:
-            model_name (str): Model type ('tf_bnn', 'mlp', etc.)
-            arch (str): Architecture name ('tiny', 'dense', 'wide')
+            model_name (str): Model ('binocular_tiny', 'quark', 'netbeacon', etc.)
             device (str): Device to use ('cpu', 'cuda')
         """
         self.model_name = model_name
-        self.arch = model_arch
         self.device = device
         
         # Load configuration
-        self.cfg = get_cfg(model_arch)
-        trainer_cfg = get_cfg('trainer')
+        self.cfg = get_cfg('models')
+        self.arch = self.cfg.get(self.model_name.upper(), 'ARCH').lower()
+        self.trainer_cfg = get_cfg(f'{self.arch}-trainer')
         
         # Model configuration
         self.model = None
@@ -52,33 +51,22 @@ class SimpleTrainer:
         self.scheduler = None
         
         # Training configuration from trainer config
-        self.batch_size = trainer_cfg.getint('TRAINING', 'BATCH_SIZE')
-        self.learning_rate = trainer_cfg.getfloat('TRAINING', 'LR')
-        self.scheduler_type = trainer_cfg.get('TRAINING', 'SCHEDULER')
-        self.loss = trainer_cfg.get('TRAINING', 'LOSS')
-        # self.random_seed = trainer_cfg.getint('GENERAL', 'RANDOM_SEED', fallback=42)
-        # torch.manual_seed(self.random_seed)
-        # np.random.seed(self.random_seed)
-        # random.seed(self.random_seed)
-
-        # Set epochs based on model type
-        if model_name == 'mlp':
-            self.epochs = trainer_cfg.getint('TRAINING', 'MLP_MODEL_EPOCHS')
-            self.final_epochs = self.epochs
-        else:  # BNN models
-            self.epochs = trainer_cfg.getint('TRAINING', 'BNN_CROSS_VAL_EPOCHS')
-            self.final_epochs = trainer_cfg.getint('TRAINING', 'BNN_FINAL_EPOCHS')
+        self.batch_size = self.trainer_cfg.getint('TRAINING', 'BATCH_SIZE')
+        self.learning_rate = self.trainer_cfg.getfloat('TRAINING', 'LR')
+        self.scheduler_type = self.trainer_cfg.get('TRAINING', 'SCHEDULER')
+        self.loss = self.trainer_cfg.get('TRAINING', 'LOSS')
+        self.epochs = self.trainer_cfg.getint('TRAINING', 'MODEL_EPOCHS')
+        self.final_epochs = self.trainer_cfg.getint('TRAINING', 'FINAL_EPOCHS', fallback=self.epochs)
         
         # SHAP configuration from trainer config
-        self.shap_background_size = trainer_cfg.getint('SHAP', 'BACKGROUND_SIZE', fallback=64)
-        self.shap_explain_size = trainer_cfg.getint('SHAP', 'EXPLAIN_SIZE', fallback=32)
+        self.shap_background_size = self.trainer_cfg.getint('SHAP', 'BACKGROUND_SIZE', fallback=64)
+        self.shap_explain_size = self.trainer_cfg.getint('SHAP', 'EXPLAIN_SIZE', fallback=32)
         
         # Results configuration
-        self.results_dir = f'results/{self.model_name}_{model_arch}'
-        # os.makedirs(self.results_dir, exist_ok=True)
+        self.results_dir = f'results/{self.model_name}'
         
         # Initialize MetricsManager for plotting
-        hidden_nrs = ast.literal_eval(self.cfg.get('MODEL', 'OUT_FEATURES'))[0]  # First hidden layer size
+        hidden_nrs = ast.literal_eval(self.cfg.get(self.model_name.upper(), 'OUT_FEATURES', fallback='[0]'))[0]  # First hidden layer size
         self.metrics_manager = MetricsManager(
             init_lr=self.learning_rate,
             init_epochs=self.epochs,
@@ -87,30 +75,20 @@ class SimpleTrainer:
             distilled=False,  # Not used for simple trainer
             init_wd=0.0,  # Default value
             res_dir=self.results_dir,
-            dataset='simple',  # Placeholder since we don't have dataset
+            dataset='undefined',  # Placeholder since we don't have dataset
             model_arch=self.arch,
             model_name=self.model_name
         )
 
-        self.nn_input_size = self.cfg.getint('MODEL', 'INPUT_LAYER')
+        self.nn_input_size = self.cfg.getint(self.model_name.upper(), 'INPUT_LAYER')
         
         # Initialize model functions
         self._setup_model_functions()
     
     def _setup_model_functions(self):
         """Setup model creation functions based on model_name."""
-        if 'bnn' in self.model_name:
-            self.model_f = smaller
-        elif 'mlp' in self.model_name:
-            self.model_f = deeper
-        else:
-            raise ValueError(f"Unknown model_name: {self.model_name}")
-    
-    def _get_model_identifier(self):
-        """Generate model identifier string."""
-        hidden_size = ast.literal_eval(self.cfg.get('MODEL', 'OUT_FEATURES'))
-        output_size = self.cfg.getint('MODEL', 'NUM_CLASSES')
-        return f"{self.nn_input_size}-{'-'.join(str(i) for i in hidden_size)}-{output_size}]"
+        import ml_helpers.models as models
+        self.model_f = getattr(models, self.cfg.get(self.model_name.upper(), 'CONSTRUCTOR'))
     
     def reset_model(self, nn_input_size=None):
         """
@@ -122,15 +100,15 @@ class SimpleTrainer:
         if nn_input_size is not None:
             self.nn_input_size = nn_input_size
             
-        self.model = self.model_f(self.cfg, self.nn_input_size).to(device=self.device)
+        self.model = self.model_f(self.cfg, self.nn_input_size, self.model_name).to(device=self.device)
     
         self._build_optimizer_and_criterion()
-        print(f"Model reset: {self._get_model_identifier()}")
+        print(f"Model reset: {self.model_name}")
     
     def _build_optimizer_and_criterion(self):
         """Build optimizer, criterion and scheduler."""
         # Optimizer
-        if hasattr(self.cfg, 'get') and self.cfg.get('TRAIN', 'OPTIMIZER', fallback='Adam') == 'SGD':
+        if hasattr(self.trainer_cfg, 'get') and self.trainer_cfg.get('TRAINING', 'OPTIM', fallback='Adam') == 'SGD':
             self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.9)
         else:
             self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
@@ -204,8 +182,10 @@ class SimpleTrainer:
             train_loss = 0
             train_correct = 0
             train_total = 0
-            
+            bacth_ix = 0
+
             for batch_X, batch_Y in train_loader:
+                
                 self.optimizer.zero_grad()
                 
                 outputs = self.model(batch_X)
@@ -237,7 +217,10 @@ class SimpleTrainer:
                     pred = outputs.argmax(1)
                 train_correct += (pred == batch_Y).sum().item()
                 train_total += batch_Y.size(0)
-            
+                if verbose and (bacth_ix % 50 == 0):
+                    print(f"\tBatch {bacth_ix:4d} | Train Acc: {(pred == batch_Y).sum().item()/batch_Y.size(0):3f} | Train Loss: {loss.item():.6f}")
+                bacth_ix += 1
+
             train_acc = train_correct / train_total
             train_loss_avg = train_loss / len(train_loader)
             train_accs.append(train_acc)
@@ -487,7 +470,7 @@ class SimpleTrainer:
             if accuracy is not None:
                 filename = f"model_acc{accuracy:.3f}.pth"
             else:
-                filename = f"model_{self._get_model_identifier()}.pth"
+                filename = f"model_{self.model_name}.pth"
             
             filepath = os.path.join(weights_dir, filename)
         
@@ -631,7 +614,7 @@ class SimpleTrainer:
             'model_name': self.model_name,
             'architecture': self.arch,
             'input_size': self.nn_input_size,
-            'model_identifier': self._get_model_identifier(),
+            'model_identifier': self.model_name,
             'total_parameters': total_params,
             'trainable_parameters': trainable_params,
             'device': str(self.device),

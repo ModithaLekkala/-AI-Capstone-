@@ -206,24 +206,19 @@ class ShapExplainer:
         # 1) Beeswarm: pick class with largest total variance for a richer plot
         cls_for_plot = int(np.argmax(np.var(values, axis=0).sum(axis=0)))
         X_ex_df = pd.DataFrame(X_ex, columns=feature_names)
-        plt.figure(figsize=(10, 8))
         plt.rcParams.update({
             'font.size': 28,
             'font.family': 'sans-serif',
             'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
         })
+        plt.figure(figsize=(8, 5))
         shap.summary_plot(values[:, :, cls_for_plot], X_ex_df, show=False, max_display=max_display)
         plt.xlabel("SHAP value")  # Remove "(impact on model output)" from the default label
-        self._savefig("summary_beeswarm.png")
+        self._savefig("summary_beeswarm.pdf")
 
         # 2) Overall bar chart (top-K)
         order = np.argsort(overall_importance)[::-1][:max_display]
         plt.figure(figsize=(12, 8))
-        plt.rcParams.update({
-            'font.size': 20,
-            'font.family': 'sans-serif',
-            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
-        })
         plt.barh(np.array(feature_names)[order][::-1], overall_importance[order][::-1])
         # plt.title("mean(abs(SHAP)) importance")
         plt.xlabel("mean(abs(SHAP))")
@@ -391,8 +386,6 @@ class ShapExplainer:
         path = os.path.join(self.out_dir, filename)
         plt.savefig(path, dpi=dpi, bbox_inches='tight')
         plt.close()
-        # Reset font size for next plot
-        plt.rcParams.update({'font.size': plt.rcParamsDefault['font.size']})
 
     # ------------------------ convenience for your Trainer ------------------------
 

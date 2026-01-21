@@ -2,6 +2,9 @@
 import pandas as pd
 import numpy as np
 import os
+
+from sklearn.discriminant_analysis import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from ml_helpers import data_binarization, data_preprocess
 from helpers import get_cfg
 from imblearn.under_sampling import RandomUnderSampler
@@ -24,15 +27,68 @@ CIC_UNSW_NB15_SAMPLES = 'Data.csv'
 CIC_UNSW_NB15_LABELS = 'Label.csv'
 
 RENAME_MAP = {
+    # binocular features
     'Total Fwd Packets': 'Total Fwd Packet',
     'Total Backward Packets': 'Total Bwd Packets',
     'Total Length of Fwd Packets' : 'Total Length of Fwd Packet',
     'Total Length of Bwd Packets' : 'Total Length of Bwd Packet',
     'Total Bwd packets': 'Total Bwd Packets',
-    "CWE Flag Count": "CWR Flag Count"
+    "CWE Flag Count": "CWR Flag Count",
+    # ------------------------------
+
+    # other features
+    "Max Packet Length": "Packet Length Max",
+    "Min Packet Length": "Packet Length Min",
 }
 
-FEATURE_MAP = {
+QUARK_FEATURE_MAP = {
+    "Packet Length Max": "pkt_size_max",
+    "Packet Length Min": "pkt_size_min",
+    "Total Length of Fwd Packet": "sbytes",
+    "Total Length of Bwd Packet": "dbytes",
+    "FIN Flag Count": "fin_cnt",
+    "SYN Flag Count": "syn_cnt",
+    "RST Flag Count": "rst_cnt",
+    "PSH Flag Count": "psh_cnt",
+    "ACK Flag Count": "ack_cnt",
+    "ECE Flag Count": "ece_cnt",
+    "Flow IAT Mean": "iat_mean",
+    "Label": "label"
+}
+
+NETBEACON_FEATURE_MAP = {
+    # netbeacon per-packet features
+    "Flow IAT Min": "flow_iat_min",
+    "Packet Length Mean": "pkt_size_avg",
+    "Packet Length Max": "pkt_size_max",
+    "Packet Length Min": "pkt_size_min",
+    "Packet Length Variance": "pkt_size_var_approx",
+    "Label": "label"
+}
+
+BINOCULAR_FEATURE_MAP = {
+    # binocular features
+    "Total Length of Fwd Packet": "sbytes",
+    "Total Length of Bwd Packet": "dbytes",
+    "Total Fwd Packet": "spkts",
+    "Total Bwd Packets": "dpkts",
+    "Fwd Packet Length Mean": "smeansz",
+    "Bwd Packet Length Mean": "dmeansz",
+    "Fwd Packet Length Max": "smaxbytes",
+    "Bwd Packet Length Max": "dmaxbytes",
+    "Fwd Packet Length Min": "sminbytes",
+    "Bwd Packet Length Min": "dminbytes",
+    "FIN Flag Count": "fin_cnt",
+    "SYN Flag Count": "syn_cnt",
+    "RST Flag Count": "rst_cnt",
+    "PSH Flag Count": "psh_cnt",
+    "ACK Flag Count": "ack_cnt",
+    "ECE Flag Count": "ece_cnt",
+    "Label": "label"
+}
+
+ALL_FEATURE_MAP = {
+    # binocular features
     "Total Length of Fwd Packet": "sbytes",
     "Total Length of Bwd Packet": "dbytes",
     "Total Fwd Packet": "spkts",
@@ -52,13 +108,18 @@ FEATURE_MAP = {
     "ECE Flag Count": "ece_cnt",
     "URG Flag Count": "urg_cnt",
     "CWR Flag Count": "cwr_cnt",
+    "Flow IAT Min": "flow_iat_min",
+    "Packet Length Mean": "pkt_size_avg",
+    "Packet Length Max": "pkt_size_max",
+    "Packet Length Min": "pkt_size_min",
+    "Packet Length Variance": "pkt_size_var_approx",
     "Label": "label"
 }
 
 def main():
 # read datasets
     if os.path.exists(CICIDS2017_PATH):
-        print('Reading CICIDS2017 files...')
+        print('Merging CICIDS2017 files...')
         mon = pd.read_csv(MONDAY, skipinitialspace=True)
         thu = pd.read_csv(TUESDAY, skipinitialspace=True)
         wed = pd.read_csv(WEDNESDAY, skipinitialspace=True)
@@ -71,10 +132,18 @@ def main():
 
         print('Starting CIC-IDS-2017 process...')
         cic_ids_2017 = preprocess_df(cic_ids_2017)
-        bin_cic_ids_2017 = binarize_df(cic_ids_2017)
-        bin_cic_ids_2017 = undersample_df(bin_cic_ids_2017)
-        cic_ids_2017.to_csv(f'{DATA_PATH}/CICIDS2017/full_cicids2017.csv', index=False)
-        bin_cic_ids_2017.to_csv(f'{DATA_PATH}/CICIDS2017/bin_cicids2017_168b.csv', index=False)
+        cic_ids_2017 = undersample_df(cic_ids_2017)
+        
+        quark_ds = cic_ids_2017[ list(QUARK_FEATURE_MAP.values())]
+        quark_ds = compute_quark_features(quark_ds)
+        netbeacon_ds = cic_ids_2017[ list(NETBEACON_FEATURE_MAP.values())]
+        binocular_ds = cic_ids_2017[ list(BINOCULAR_FEATURE_MAP.values())]
+        binocular_bin_ds = binarize_df(binocular_ds)
+        
+        quark_ds.to_csv(f'{DATA_PATH}/CICIDS2017/quark.csv', index=False)
+        netbeacon_ds.to_csv(f'{DATA_PATH}/CICIDS2017/netbeacon.csv', index=False)
+        binocular_ds.to_csv(f'{DATA_PATH}/CICIDS2017/binocular_full.csv', index=False)
+        binocular_bin_ds.to_csv(f'{DATA_PATH}/CICIDS2017/binocular.csv', index=False)
         print('CICIDS2017 processed datasets saved.')
 
     if os.path.exists(CIC_UNSW_NB15_SAMPLES):
@@ -86,10 +155,29 @@ def main():
 
         print('Starting CIC_UNSW_NB15 process...')
         cic_unsw_nb15 = preprocess_df(cic_unsw_nb15)
-        bin_cic_unsw_nb15 = binarize_df(cic_unsw_nb15)
-        cic_unsw_nb15.to_csv(f'{DATA_PATH}/CIC_UNSW_NB15/full_cic_unsw_nb15.csv', index=False)
-        bin_cic_unsw_nb15.to_csv(f'{DATA_PATH}/CIC_UNSW_NB15/bin_cic_unsw_nb15_168b.csv', index=False)
+
+        quark_ds = cic_unsw_nb15[ list(QUARK_FEATURE_MAP.values())]
+        quark_ds = compute_quark_features(quark_ds)
+        netbeacon_ds = cic_unsw_nb15[ list(NETBEACON_FEATURE_MAP.values())]
+        binocular_ds = cic_unsw_nb15[ list(BINOCULAR_FEATURE_MAP.values())]
+        binocular_bin_ds = binarize_df(binocular_ds)
+
+        quark_ds.to_csv(f'{DATA_PATH}/CIC_UNSW_NB15/quark.csv', index=False)
+        netbeacon_ds.to_csv(f'{DATA_PATH}/CIC_UNSW_NB15/netbeacon.csv', index=False)
+        binocular_ds.to_csv(f'{DATA_PATH}/CIC_UNSW_NB15/binocular_full.csv', index=False)
+        binocular_bin_ds.to_csv(f'{DATA_PATH}/CIC_UNSW_NB15/binocular.csv', index=False)
         print('CIC_UNSW_NB15 processed dataset saved.')
+
+def compute_quark_features(df: pd.DataFrame):
+    df['pkt_size_tot'] = df['sbytes'] + df['dbytes']
+    pkt_size_tot_col = df.pop('pkt_size_tot')
+    df.insert(2, 'pkt_size_tot', pkt_size_tot_col)
+    df['label'] = df.pop('label')
+    df.drop(columns=['sbytes','dbytes'], inplace=True)
+    scaler = StandardScaler()
+    scaler.fit(df[df.columns[:-1]])
+    df[df.columns[:-1]] = scaler.transform(df[df.columns[:-1]])
+    return df
 
 def binarize_df(df: pd.DataFrame):
     df_Y=df[df.columns[-1]]
@@ -98,13 +186,14 @@ def binarize_df(df: pd.DataFrame):
     binarizable_features_map = list(get_cfg('binarization').options('FEATURE_BIT_WIDTHS'))
     Xbin = data_binarization(x_tmp.astype('int'), selected_columns=binarizable_features_map)
     Xbin=pd.DataFrame(Xbin)
+    df_Y.reset_index(drop=True, inplace=True)
     return pd.concat([Xbin, df_Y], axis=1)
 
 def preprocess_df(df: pd.DataFrame):
     print('Filter dataset by computable features by Tofino.')
     df = df.rename(columns=RENAME_MAP)
-    df = df[list(FEATURE_MAP.keys())]
-    df = df.rename(columns=FEATURE_MAP)
+    df = df[list(ALL_FEATURE_MAP.keys())]
+    df = df.rename(columns=ALL_FEATURE_MAP)
     print('Dataset filtered.')
 
     # Fix duplicates
@@ -132,19 +221,15 @@ def preprocess_df(df: pd.DataFrame):
         df['label'] = (df['label'] == 0).astype(int)
     print('New values in label column:', df['label'].unique())
 
-    dict = {
-        'categorical_features_values': 6,
-        'continuous_features_values': 50,
-        'list_drop': [
-            'id',
-            'attack_cat'
-        ]
-    }
-    df_Y=df[df.columns[-1]]
-    df,  _ = data_preprocess(df[df.columns[:-1]], dict)
-    df = pd.concat([df, df_Y], axis=1)
-    df = df.reset_index(drop=True)
+    # drop unused columns
+    df.drop(['id', 'attack_cat'],axis=1,inplace=True, errors='ignore')
 
+    # df_Y=df[df.columns[-1]]
+    # df_X=df[df.columns[:-1]]
+    # df_X,  _ = data_preprocess(df_X, dict)
+    
+    # df = pd.concat([df_X, df_Y], axis=1)
+    # df = df.reset_index(drop=True)
     return df
 
 def undersample_df(df: pd.DataFrame, target_col: str = "label", ratio: float = 1.4):
