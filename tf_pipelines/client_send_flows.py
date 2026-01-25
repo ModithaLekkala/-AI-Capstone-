@@ -1,27 +1,27 @@
 import pandas as pd
 from scapy.all import sendp
 from scapy.layers.l2 import Ether
-from configparser import ConfigParser
+import configparser as argparse
 import os
 import json
 from helpers.pycommon import BNNFeaturesHeader, DUMMY_ETHER_SRC, DUMMY_ETHER_DST, FEATURES_TYPE_ETHER, CONCURRENT_ACTIVE_FLOWS
 from helpers.utils import get_cfg
 
-###########################################
-# BNN FEATURES EXTRACTOR EMULATOR
-###########################################
 
-
-TEST_SET='data/CICIDS2017/full_cicids2017_balanced.csv'
-CICIDS2017_CONFIG = 'cicids2017'
 FEATURE_EXTRACTOR_CPU_INTF = 'veth5'
 
 def main():
-    dataset_cfg = get_cfg(CICIDS2017_CONFIG)
+    parser = argparse.ArgumentParser(description="Pre-computed flow classification client")
+    parser.add_argument("-d", default="cicids2017", 
+                       choices=["cicids2017", "cic-unsw-nb15"], help="Flows dataset to use")
+    args = parser.parse_args()
+
+    dataset_cfg = get_cfg(args.d)
     selected_features = json.loads(dataset_cfg.get('DATASET', 'SELECTED_FEATURES'))
+    ds_path = dataset_cfg.get('DATASET', 'PATH')
 
     print('Loading test set...', end='')
-    flows_test_set = pd.read_csv(TEST_SET)
+    flows_test_set = pd.read_csv(ds_path)
     flows_test_set = flows_test_set[selected_features]
     print(' done.')
 
