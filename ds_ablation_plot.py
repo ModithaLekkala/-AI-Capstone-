@@ -7,12 +7,14 @@ def main():
     parser.add_argument('--model','-m', type=str, required=True, help='Model architecture being evaluated.')
     parser.add_argument('-o', type=str, required=False, help='Output plot filename.')
     parser.add_argument('-rw', type=int, default=10, help='Rolling window size for smoothing.')
+    parser.add_argument('--metric', type=str, default='f1', choices=['acc', 'prec', 'f1', 'rec'], help='Metric to plot.')
+
     args = parser.parse_args()
 
     if not os.path.exists(args.res_dir):
         raise FileNotFoundError(f"Directory {args.res_dir} does not exist.")
     
-    plot_distribution_shift_bnn(dir=args.res_dir, model=args.model, enable_bnn_random_plot=True, enable_bnn_no_conf_plot=True, filename=args.o, rolling_window=args.rw)
+    plot_distribution_shift_bnn(dir=args.res_dir, model=args.model, enable_bnn_random_plot=True, enable_bnn_no_conf_plot=True, filename=args.o, rolling_window=args.rw, metric=args.metric)
     plot_confidence_scores(args.res_dir, args.model)
     plot_retraining_comparison_bars(args.res_dir, args.model, filename='comparison')
 
