@@ -206,19 +206,13 @@ pip-selfcheck.json
 
 .DS_Store
 
-p4src/build
 topo.json
 topology.json
 datasets/*
 pysrc/models/*
 pysrc/metric_plots/*
 log/*
-p4src/log/*
 !p4src/tf_feature_extr/include/include/common/*
-pysrc/results*
-p4src/results*
-p4src/weights*
-p4src/shaps*
 *.png
 *.jpg
 *.jpeg
