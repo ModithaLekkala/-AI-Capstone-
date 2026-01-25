@@ -104,7 +104,19 @@ def load_config(dir):
         raise FileNotFoundError(f"Config file not found in {dir}")
     return config
 
-def plot_distribution_shift_bnn(dir, model, filename=None, enable_bnn_random_plot=False, enable_bnn_no_conf_plot=False, rolling_window=10):
+def get_metric(metric_name):
+    if metric_name == 'acc':
+        return accuracy_score, "Accuracy"
+    elif metric_name == 'prec':
+        return precision_score, "Precision"
+    elif metric_name == 'f1':
+        return f1_score, "F1 Score"
+    elif metric_name == 'rec':
+        return recall_score, "Recall"
+    else:
+        raise ValueError(f"Unsupported metric: {metric_name}")
+
+def plot_distribution_shift_bnn(dir, model, filename=None, enable_bnn_random_plot=False, enable_bnn_no_conf_plot=False, rolling_window=10, metric='f1'):
     model_results_dir = f'{dir}/simple_cross_dataset_eval_{model}'
     
     config = load_config(model_results_dir)
@@ -138,7 +150,12 @@ def plot_distribution_shift_bnn(dir, model, filename=None, enable_bnn_random_plo
             continue
 
         model_res= pd.read_csv(model_result_path)
-        model_metric = (model_res['predictions'] == model_res['targets']).groupby(model_res['batch']).mean().to_list()
+        metric_fn, metric_name = get_metric(metric)
+        metric_res = ( 
+            model_res.groupby("batch")
+            .apply(lambda g: metric_fn(g["targets"], g["predictions"]))
+        ).to_list()
+        # metric_res = (model_res['predictions'] == model_res['targets']).groupby(model_res['batch']).mean().to_list()
 
         # Apply rolling average of last 5 batches for smoother plotting
         rolling_window = 10
@@ -148,7 +165,7 @@ def plot_distribution_shift_bnn(dir, model, filename=None, enable_bnn_random_plo
         for i in range(N_BATCHES):
             start_idx = max(0, i - rolling_window + 1)
             end_idx = i + 1
-            model_acc_avg = np.mean(model_metric[start_idx:end_idx])
+            model_acc_avg = np.mean(metric_res[start_idx:end_idx])
             model_acc_smooth.append(model_acc_avg)
             batch_nums.append(i + 1)
 
@@ -160,7 +177,7 @@ def plot_distribution_shift_bnn(dir, model, filename=None, enable_bnn_random_plo
     else:
         out_path = f'{model_results_dir}/{model}_ds_test_ablation.pdf'
     ax.set_xlabel('Batch Number')
-    ax.set_ylabel('Accuracy')
+    ax.set_ylabel(metric_name)
     ax.set_ylim(0.65, 1)
     ax.grid(False)
     ax.axvline(x=DATASET_SWITCH_START+1, color='orange', linestyle=':', alpha=0.7, linewidth=3)
@@ -220,7 +237,9 @@ def plot_distribution_shift_model(dir, filename, model_name):
 
     print(f"\nPlot saved to {out_path}")
 
-def plot_distribution_shift_model(dir, filename, models,rw=10):
+def plot_distribution_shift_model(dir, filename, models,rw=10, metric='f1'):
+    metric_fn, metric_name = get_metric(metric)
+    
     plt.rcParams.update({
         'font.size': 26,
         'font.family': 'sans-serif',
@@ -228,7 +247,7 @@ def plot_distribution_shift_model(dir, filename, models,rw=10):
     })
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.set_xlabel('Batch Number')
-    ax.set_ylabel('Accuracy')
+    ax.set_ylabel(metric_name)
     ax.set_ylim(0.65, 1)
     ax.grid(False)
 
@@ -237,7 +256,12 @@ def plot_distribution_shift_model(dir, filename, models,rw=10):
     for model in models:
         base_res_path = f'{dir}/simple_cross_dataset_eval_{model}'
         model_res = pd.read_csv(f'{base_res_path}/{model}_results.csv')
-        model_accuracies = (model_res['predictions'] == model_res['targets']).groupby(model_res['batch']).mean().to_list()
+
+        metric_res = ( 
+            model_res.groupby("batch")
+            .apply(lambda g: metric_fn(g["targets"], g["predictions"]))
+        ).to_list()
+
         config = load_config(base_res_path)
         MAX_UNSW_FRACTION = config['MAX_UNSW_FRACTION']
         DATASET_SWITCH_START = config['DATASET_SWITCH_START']
@@ -254,7 +278,7 @@ def plot_distribution_shift_model(dir, filename, models,rw=10):
             end_idx = i + 1
             
             # Calculate rolling average
-            avg_model_acc = np.mean(model_accuracies[start_idx:end_idx])
+            avg_model_acc = np.mean(metric_res[start_idx:end_idx])
             smoothed_model_accuracies.append(avg_model_acc)
 
             batch_nums.append(i + 1)
