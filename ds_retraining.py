@@ -19,11 +19,11 @@ EXPERIMENT_NAME = 'DS_RETRAINING'
 
 def main():
     parser = argparse.ArgumentParser(description="Distribition Shift Retraining Experiment | config options in configs/experiments.ini")
-    parser.add_argument("--model", default="binocular_tiny", 
+    parser.add_argument("-m", default="binocular_tiny", 
                        choices=["binocular_dense", "binocular_wide", "binocular_tiny"], help="Architecture to test")
 
     args = parser.parse_args()
-    RES_DIR = f'results/simple_cross_dataset_eval_{args.model}'
+    RES_DIR = f'results/simple_cross_dataset_eval_{args.m}'
 
     experiment_cfg = get_cfg('experiments')
     MAX_UNSW_FRACTION = experiment_cfg.getfloat(EXPERIMENT_NAME, 'MAX_UNSW_FRACTION')
@@ -31,17 +31,17 @@ def main():
     DATASET_SWITCH_END = experiment_cfg.getint(EXPERIMENT_NAME, 'DATASET_SWITCH_END')
     BATCH_SIZE = experiment_cfg.getint(EXPERIMENT_NAME, 'BATCH_SIZE')
     N_BATCHES = experiment_cfg.getint(EXPERIMENT_NAME, 'N_BATCHES')
-    CRITICAL_RETRAIN_SAMPLES = experiment_cfg.getint(f'{EXPERIMENT_NAME}-{args.model.upper()}', 'CRITICAL_RETRAIN_SAMPLES')
-    OG_RETRAIN_SAMPLES = experiment_cfg.getint(f'{EXPERIMENT_NAME}-{args.model.upper()}', 'OG_RETRAIN_SAMPLES')
-    EMPIRICAL_RETRAIN_SAMPLES = experiment_cfg.getint(f'{EXPERIMENT_NAME}-{args.model.upper()}', 'EMPIRICAL_RETRAIN_SAMPLES')
-    RETRAINING_EPOCHS = experiment_cfg.getint(f'{EXPERIMENT_NAME}-{args.model.upper()}', 'RETRAINING_EPOCHS')
+    CRITICAL_RETRAIN_SAMPLES = experiment_cfg.getint(f'{EXPERIMENT_NAME}-{args.m.upper()}', 'CRITICAL_RETRAIN_SAMPLES')
+    OG_RETRAIN_SAMPLES = experiment_cfg.getint(f'{EXPERIMENT_NAME}-{args.m.upper()}', 'OG_RETRAIN_SAMPLES')
+    EMPIRICAL_RETRAIN_SAMPLES = experiment_cfg.getint(f'{EXPERIMENT_NAME}-{args.m.upper()}', 'EMPIRICAL_RETRAIN_SAMPLES')
+    RETRAINING_EPOCHS = experiment_cfg.getint(f'{EXPERIMENT_NAME}-{args.m.upper()}', 'RETRAINING_EPOCHS')
 
     print('Create results dirs...',end='')
     os.makedirs(RES_DIR, exist_ok=True)
     os.makedirs(f'{RES_DIR}/weights', exist_ok=True)
     print(' OK\n')
     print("🧪 DISTRIBUTION SHIFT TEST")
-    print(f"Model: {args.model}\n")
+    print(f"Model: {args.m}\n")
 
     # Load datasets
     print("Loading CICIDS2017...")
@@ -78,11 +78,11 @@ def main():
     print(f"Features: {X_tr.shape[1]}")
 
     print("\nInit TF BNN Random")
-    binocular_rand = SimpleTrainer(f'{args.model}', 'cpu')
+    binocular_rand = SimpleTrainer(f'{args.m}', 'cpu')
     binocular_rand.reset_model()  # Use default BNN input size
     
     print("\nInit TF BNN SHAP")
-    binocular_shap = SimpleTrainer(f'{args.model}', 'cpu')
+    binocular_shap = SimpleTrainer(f'{args.m}', 'cpu')
     binocular_shap.reset_model()  # This will use the default BNN input size
     
     print("\nInit MLP teacher")
@@ -99,7 +99,7 @@ def main():
 
     print("\nTraining BNN random model (random features)")
     res=binocular_rand.train(X_tr[:, random_feat_idx], Y_tr, verbose=True)  # Use random features
-    pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.model}_train_rand_accuracies.csv')
+    pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.m}_train_rand_accuracies.csv')
 
     # Train MLP teacher on the same training split
     print("\nTraining MLP teacher...")
@@ -131,7 +131,7 @@ def main():
     
     print(f"\nTraining BNN student (SHAP features)")
     res = binocular_shap.train(X_tr[:,shap_feat_idx], Y_tr, verbose=True)
-    pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.model}_train_accuracies.csv')
+    pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.m}_train_accuracies.csv')
     
     # Save pre-retraining models
     teacher.save_model(f'{RES_DIR}/weights/pre_retraining_teacher.pth')
@@ -307,11 +307,11 @@ def main():
             
             # Create new trainer instance for retraining
             print("\nCreating new SHAP BNN trainer instance for retraining...")
-            retrained_bnn_shap = SimpleTrainer(f'{args.model}', 'cpu')
+            retrained_bnn_shap = SimpleTrainer(f'{args.m}', 'cpu')
             retrained_bnn_shap.reset_model()
             retrained_bnn_shap.epochs = RETRAINING_EPOCHS
             res=retrained_bnn_shap.train(retrain_X[:, shap_feat_idx], retrain_Y, verbose=True)
-            pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.model}_retrain_accuracies.csv')
+            pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.m}_retrain_accuracies.csv')
 
             # Create new trainer instance for retraining
             print("\nCreating new SHAP BNN trainer instance NO CONFIDENCE for retraining...")
@@ -326,11 +326,11 @@ def main():
             X_retrain_no_conf = X_retrain_no_conf[shuffle_idx]
             Y_retrain_no_conf = Y_retrain_no_conf[shuffle_idx]
             
-            retrained_bnn_shap_no_conf = SimpleTrainer(f'{args.model}', 'cpu')
+            retrained_bnn_shap_no_conf = SimpleTrainer(f'{args.m}', 'cpu')
             retrained_bnn_shap_no_conf.reset_model()
             retrained_bnn_shap_no_conf.epochs = RETRAINING_EPOCHS
             res=retrained_bnn_shap_no_conf.train(X_retrain_no_conf[:, shap_feat_idx], Y_retrain_no_conf, verbose=True)
-            pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.model}_retrain_no_conf_accuracies.csv')
+            pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.m}_retrain_no_conf_accuracies.csv')
 
             # Save post-retraining models
             retrained_bnn_shap_no_conf.save_model(f'{RES_DIR}/weights/post_retraining_bnn_shap_no_conf.pth')
@@ -374,10 +374,10 @@ def main():
         'targets': targets,
         'predictions': rand_preds,
     }
-    pd.DataFrame(shap_results).to_csv(f'{RES_DIR}/{args.model}_results.csv', index=False)
-    pd.DataFrame(shap_no_conf_results).to_csv(f'{RES_DIR}/{args.model}_no_conf_results.csv', index=False)
+    pd.DataFrame(shap_results).to_csv(f'{RES_DIR}/{args.m}_results.csv', index=False)
+    pd.DataFrame(shap_no_conf_results).to_csv(f'{RES_DIR}/{args.m}_no_conf_results.csv', index=False)
     pd.DataFrame(teacher_results).to_csv(f'{RES_DIR}/teacher_results.csv', index=False)
-    pd.DataFrame(rand_results).to_csv(f'{RES_DIR}/{args.model}_random_results.csv', index=False)
+    pd.DataFrame(rand_results).to_csv(f'{RES_DIR}/{args.m}_random_results.csv', index=False)
 
     with open(f'{RES_DIR}/config.json', 'w') as f:
         curr_config = {
