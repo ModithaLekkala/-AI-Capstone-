@@ -10,6 +10,8 @@ from ml_helpers.utils import analyze_confidence_distribution, get_confidence_saf
 from helpers.utils import load_dataset, get_cfg
 import random
 import argparse
+from ml_helpers.shap_explainer import ShapExplainer
+
 
 np.random.seed(42)
 torch.manual_seed(42)
@@ -119,7 +121,6 @@ def main():
 
     # Use MLP teacher for SHAP computation
     print("\nUsing MLP teacher for SHAP computation...")
-    from ml_helpers.shap_explainer import ShapExplainer
     _, indices_file = ShapExplainer.run_from_trainer(teacher, force_recompute=True, use_eval=False, out_dir=f'{RES_DIR}/shap_results')
     import json
     with open(indices_file, 'r') as f:

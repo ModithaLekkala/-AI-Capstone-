@@ -1,11 +1,11 @@
 import pandas as pd
 from scapy.all import sendp
 from scapy.layers.l2 import Ether
-import configparser as argparse
+import argparse
 import os
 import json
-from helpers.pycommon import BNNFeaturesHeader, DUMMY_ETHER_SRC, DUMMY_ETHER_DST, FEATURES_TYPE_ETHER, CONCURRENT_ACTIVE_FLOWS
-from helpers.utils import get_cfg
+from helpers.pycommon import BNNFeaturesHeader, DUMMY_ETHER_SRC, DUMMY_ETHER_DST, FEATURES_TYPE_ETHER
+from helpers import get_cfg
 
 
 FEATURE_EXTRACTOR_CPU_INTF = 'veth5'
@@ -14,6 +14,8 @@ def main():
     parser = argparse.ArgumentParser(description="Pre-computed flow classification client")
     parser.add_argument("-d", default="cicids2017", 
                        choices=["cicids2017", "cic-unsw-nb15"], help="Flows dataset to use")
+    parser.add_argument("-n", type=int, default=10, 
+                       help="Number of concurrent active flows to simulate")
     args = parser.parse_args()
 
     dataset_cfg = get_cfg(args.d)
@@ -25,8 +27,8 @@ def main():
     flows_test_set = flows_test_set[selected_features]
     print(' done.')
 
-    print(f'Sampling {CONCURRENT_ACTIVE_FLOWS} flows from test set...', end='')
-    flows_test_set = flows_test_set.sample(n=CONCURRENT_ACTIVE_FLOWS, random_state=1).reset_index(drop=True)
+    print(f'Sampling {args.n} flows from test set...', end='')
+    flows_test_set = flows_test_set.sample(n=args.n, random_state=1).reset_index(drop=True)
     print(' done.')
     
     print('Flow features packets are creating...', end='')

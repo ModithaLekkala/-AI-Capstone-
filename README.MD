@@ -24,7 +24,7 @@ After dependecies installation.
 3) Run `sudo bash $SDE_INSTALL/bin/veth_setup.sh`, then compile and install the program on tofino SDE with `sudo bash workflow.sh`
 4) Launch the tofino model into an external terminal running `bash $SDE/run_tofino_model.sh -p multipipe_inetml -f binocular/tf_pipelines/ports.json`
 5) Launch switch on external terminal running `bash $SDE/run_switchd.sh -p multipipe_inetml`
-6) Launch controller setup on external terminal ``running $SDE/run_bfshell.sh -b `pwd`/tf_pipelines/controller_adv.py``
+6) Launch controller setup on external terminal running ``bash $SDE/run_bfshell.sh -b `pwd`/tf_pipelines/controller_adv.py``
     - test a. single flow feature extractor + bnn executor: `sudo python tf_pipelines/client.py --pcap <pcapfile_path>`
     - test b. multiple flows bnn executor test:  `sudo python tf_pipelines/client_send_flows.py` 
 
