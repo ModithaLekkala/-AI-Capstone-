@@ -128,7 +128,7 @@ def plot_distribution_shift_bnn(dir, model, filename=None, enable_bnn_random_plo
     ENABLE_NO_CONF_BNN = enable_bnn_no_conf_plot
 
     plt.rcParams.update({
-        'font.size': 26,
+        'font.size': 34,
         'font.family': 'sans-serif',
         'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
     })
@@ -182,7 +182,7 @@ def plot_distribution_shift_bnn(dir, model, filename=None, enable_bnn_random_plo
     ax.grid(False)
     ax.axvline(x=DATASET_SWITCH_START+1, color='orange', linestyle=':', alpha=0.7, linewidth=3)
     if RETRAIN_BATCH > 0: ax.axvline(x=RETRAIN_BATCH, color='red', linestyle=':', alpha=0.7, linewidth=3)
-    ax.legend(loc='lower left', fontsize=24, ncol=2)
+    ax.legend(loc='lower left', fontsize=25, ncol=2)
     plt.tight_layout()
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
     print(f"DS ablation plot saved to {out_path}")
@@ -241,7 +241,7 @@ def plot_distribution_shift_model(dir, filename, models,rw=10, metric='f1'):
     metric_fn, metric_name = get_metric(metric)
     
     plt.rcParams.update({
-        'font.size': 26,
+        'font.size': 34,
         'font.family': 'sans-serif',
         'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
     })
@@ -290,7 +290,7 @@ def plot_distribution_shift_model(dir, filename, models,rw=10, metric='f1'):
     first_mixed_batch = DATASET_SWITCH_START + 1
     ax.axvline(x=first_mixed_batch, color='orange', linestyle=':', alpha=0.7, linewidth=3)
 
-    ax.legend(loc='lower left', fontsize=26)
+    ax.legend(loc='lower left', fontsize=25, ncol=2)
     plt.tight_layout()
     
     out_path = f'{dir}/gradual_shift_eval_to_{MAX_UNSW_FRACTION:.2f}_{filename}.pdf'

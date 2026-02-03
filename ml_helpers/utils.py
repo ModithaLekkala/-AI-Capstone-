@@ -62,6 +62,33 @@ def data_preprocess(data: pd.DataFrame, spec_dict, binarization=False):
 
     return data, og_samples
 
+def get_feature_from_bitno(bitno: int, binarization_cfg=None):
+    """
+    Given a global bit index, return:
+    - feature name
+    - bit index inside the feature (0 = MSB)
+
+    bitno is 0-based.
+    """
+    if binarization_cfg is None:
+        binarization_cfg = get_cfg('binarization')
+
+    if bitno < 0:
+        raise ValueError("bitno must be non-negative")
+
+    cumulative_bits = 0
+
+    for feature_name in binarization_cfg.options('FEATURE_BIT_WIDTHS'):
+        bit_width = binarization_cfg.getint('FEATURE_BIT_WIDTHS', feature_name)
+
+        if cumulative_bits <= bitno < cumulative_bits + bit_width:
+            bit_idx = bitno - cumulative_bits
+            return feature_name, bit_idx
+
+        cumulative_bits += bit_width
+
+    raise IndexError(f"bitno {bitno} exceeds total binarized feature length")
+
 
 def data_binarization(samples: pd.DataFrame, selected_columns=None):
     # Load feature bit widths from configuration file

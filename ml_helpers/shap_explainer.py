@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from typing import Optional, Sequence, Dict, Any
 import shap
+from .utils import get_feature_from_bitno
 
 
 class ShapExplainer:
@@ -131,6 +132,7 @@ class ShapExplainer:
         if feature_names is None or len(feature_names) != n_features:
             # ensure names align with real shape
             feature_names = [f"bit_f{i}" for i in range(n_features)]
+            feature_names_plot = [f"{get_feature_from_bitno(i)[0]}_bit{get_feature_from_bitno(i)[1]}" for i in range(n_features)]
 
         n_classes = self._infer_n_classes(X_bg)
         if class_names is None or len(class_names) != n_classes:
@@ -177,6 +179,8 @@ class ShapExplainer:
             if self.verbose:
                 print(f"[SHAP] Adjusting feature_names from {len(feature_names)} to {F}.")
             feature_names = [f"bit_f{i}" for i in range(F)]
+            feature_names_plot = [f"{get_feature_from_bitno(i+1)[0]}_bit{get_feature_from_bitno(i)[1]}" for i in range(F)]
+
 
         # ---- compute importances ----
         # overall importance: mean abs across samples and classes -> (F,)
@@ -212,7 +216,7 @@ class ShapExplainer:
             'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
         })
         plt.figure(figsize=(8, 5))
-        shap.summary_plot(values[:, :, cls_for_plot], X_ex_df, show=False, max_display=max_display)
+        shap.summary_plot(values[:, :, cls_for_plot], X_ex_df, feature_names=feature_names_plot, show=False, max_display=max_display)
         plt.xlabel("SHAP value")  # Remove "(impact on model output)" from the default label
         self._savefig("summary_beeswarm.pdf")
 
