@@ -5,28 +5,37 @@ CPU_INTF = 'sw-cpu'
 class BNNInput(Packet):
     name = "bnn_input_h"
     fields_desc = [
-        ByteField("sttl",   0),
-        ByteField("dttl",   0),
         ShortField("sbytes", 0),
         ShortField("dbytes", 0),
-        ShortField("smean",  0),
-        ShortField("dmean",  0),
-        ShortField("spkts",  0),
-        ShortField("dpkts",  0),
-        ByteField("synack",  0),
-        ByteField("ackdat",  0),
+        ByteField("spkts", 0),
+        ByteField("dpkts", 0),
+        ShortField("smeansz", 0),
+        ShortField("dmeansz", 0),
+        ShortField("smaxbytes", 0),
+        ShortField("dmaxbytes", 0),
+        ShortField("sminbytes", 0),
+        ShortField("dminbytes", 0),
+        ByteField("fin_cnt", 0),
+        ByteField("syn_cnt", 0),
+        ByteField("ack_cnt", 0),
+        ByteField("psh_cnt", 0),
+        ByteField("rst_cnt", 0),
+        ByteField("ece_cnt", 0),
     ]
-    # ---- summary printed by p.summary() or your handler ----
+
     def summary(self):
-        return (f"BNNInput sttl={self.sttl} dttl={self.dttl}"
+        return (f"BNNInput "
                 f"sbytes={self.sbytes} dbytes={self.dbytes} "
-                f"smean={self.smean} dmean={self.dmean} "
                 f"spkts={self.spkts} dpkts={self.dpkts} "
-                f"synack={self.synack} ackdat={self.ackdat}")
+                f"smeansz={self.smeansz} dmeansz={self.dmeansz} "
+                f"smaxbytes={self.smaxbytes} dmaxbytes={self.dmaxbytes} "
+                f"sminbytes={self.sminbytes} dminbytes={self.dminbytes} "
+                f"fin={self.fin_cnt} syn={self.syn_cnt} ack={self.ack_cnt} "
+                f"psh={self.psh_cnt} rst={self.rst_cnt} ece={self.ece_cnt}")
 
 def recv_msg_cpu(pkt):
     packet = Ether(raw(pkt))
-    if packet.type == 0x2323:
+    if packet.type == 0x2324:
         cpu_header = BNNInput(bytes(packet.load))
         print(cpu_header.summary())
 
@@ -46,4 +55,3 @@ print('→ output ports set.\n')
 
 print('\nWAITING FOR CPU PACKET')
 # run_cpu_port_loop()
-
