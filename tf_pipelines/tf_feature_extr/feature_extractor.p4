@@ -1,17 +1,15 @@
 /* -*- P4_16 -*- */
 #include <core.p4>
 #include <tna.p4>
-// #include "../common/headers.p4"
+#include "../common/headers.p4"
 #include "include/common/headers.p4"
 #include "include/hash_flows.p4"
-#include "include/stats/ttl.p4"
 #include "include/stats/bytes.p4"
 #include "include/stats/pkt_count.p4"
+#include "include/stats/tcp_flags.p4"
 #include "include/forward.p4"
 #include "include/parsers.p4"
 #include "include/deparsers.p4"
-#include "include/stats/packet_type.p4"
-#include "include/stats/iat.p4"
 
 control CollectorIngress(
     inout collector_headers_t hdr,
@@ -19,14 +17,12 @@ control CollectorIngress(
     in    ingress_intrinsic_metadata_t ig_intr_md,
     in    ingress_intrinsic_metadata_from_parser_t ig_prsr_md,
     inout ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
-    inout ingress_intrinsic_metadata_for_tm_t ig_tm_md 
+    inout ingress_intrinsic_metadata_for_tm_t ig_tm_md
 ){
     Forward() fw;
     FlowHashing() fh;
     PacketsCounter() pc;
-    TTL() ttl;
-    PacketType() get_tcp_pkt_type;
-    IAT() iat;
+    TcpFlags() tcp_flags;
     Bytes() bytes;
 
     action set_normal_pkt() {
@@ -35,43 +31,33 @@ control CollectorIngress(
     }
 
     apply {
-        // if(MIRRORED) {
-        //     SEND_TO(1)
-        // } else {
-            /* compute flow index */
-            fh.apply(hdr, meta);
+        /* compute flow index */
+        fh.apply(hdr, meta);
 
-            /* spkts, dpkts */
-            pc.apply(hdr, meta, ig_intr_md);
+        /* spkts, dpkts */
+        pc.apply(hdr, meta, ig_intr_md);
 
-            if(TCP_PKT) {
-                /* get tcp pkt type */
-                get_tcp_pkt_type.apply(hdr, meta);
+        if(TCP_PKT) {
+            /* fin_cnt, syn_cnt, ack_cnt, psh_cnt, rst_cnt, ece_cnt */
+            tcp_flags.apply(hdr, meta);
+        }
 
-                /* synack, ackdat */
-                iat.apply(hdr, meta, ig_prsr_md);
-            }
+        /* port forwarding */
+        fw.apply(hdr, meta, ig_tm_md);
 
-            /* sttl, dttl */
-            ttl.apply(hdr, meta,ig_intr_md);
+        /* sbytes, dbytes, smeansz, dmeansz, smaxbytes, dmaxbytes, sminbytes, dminbytes */
+        bytes.apply(hdr, meta);
 
-            /* port forwarding */
-            fw.apply(hdr, meta, ig_tm_md);
+        /* set bnn output if flow is mature */
+        if(meta.flow_pkts == BIDIRECTIONAL_FLOW_MATURE_TIME) {
+            hdr.bnn.setValid();
 
-            /* sbytes, dbytes, smean, dmean */
-            bytes.apply(hdr, meta);
-
-            /* set bnn output if flow is mature */
-            if(meta.flow_pkts == BIDIRECTIONAL_FLOW_MATURE_TIME) {
-                hdr.bnn.setValid();
-            
-                /* mirror logic */
-                set_normal_pkt();
-                ig_tm_md.ucast_egress_port=2;
-                hdr.bridged_md.do_egr_mirroring = 1;
-                hdr.bridged_md.egr_mir_ses = 1;
-            }   
-        // }
+            /* mirror logic */
+            set_normal_pkt();
+            ig_tm_md.ucast_egress_port=2;
+            hdr.bridged_md.do_egr_mirroring = 1;
+            hdr.bridged_md.egr_mir_ses = 1;
+        }
     }
 }
 
@@ -82,7 +68,7 @@ control CollectorEgress(
         in egress_intrinsic_metadata_from_parser_t eg_intr_md_from_prsr,
         inout egress_intrinsic_metadata_for_deparser_t eg_dprsr_md,
         inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
-    
+
     action set_mirror() {
         meta.egr_mir_ses = hdr.bridged_md.egr_mir_ses;
         meta.pkt_type = PKT_TYPE_MIRROR;
@@ -116,4 +102,4 @@ Pipeline(
     CollectorEgress(),
     CollectorEgressDeparser()
 ) features_collector;
-// Switch(features_collector) main;
+Switch(features_collector) main;

@@ -43,16 +43,22 @@ header mirror_h {
 /*------------------------------------------*/ 
 
 header bnn_input_h {
-    bit<8> sttl;
-    bit<8> dttl;
     bit<16> sbytes;
     bit<16> dbytes;
-    bit<16> smean;
-    bit<16> dmean;
-    bit<16> spkts;
-    bit<16> dpkts;
-    bit<8> synack;
-    bit<8> ackdat;
+    bit<8> spkts;
+    bit<8> dpkts;
+    bit<16> smeansz;
+    bit<16> dmeansz;
+    bit<16> smaxbytes;
+    bit<16> dmaxbytes;
+    bit<16> sminbytes;
+    bit<16> dminbytes;
+    bit<8> fin_cnt;
+    bit<8> syn_cnt;
+    bit<8> ack_cnt;
+    bit<8> psh_cnt;
+    bit<8> rst_cnt;
+    bit<8> ece_cnt;
 }
 
 struct metadata_t {
