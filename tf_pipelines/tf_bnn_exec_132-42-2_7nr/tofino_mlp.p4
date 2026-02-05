@@ -21,13 +21,13 @@
     }
 
 #define WRITE_SIGN(frst, snd, thrd, frth, fifth, six, svn, layer, th) \
-    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##svn##:##svn##] = 0; else hdr.bnn_pkt.##layer##[##svn##:##svn##] = 1; \
-    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##six##:##six##] = 0; else hdr.bnn_pkt.##layer##[##six##:##six##] = 1; \
-    if(hdr.bnn_pkt.pop3 >= th) hdr.bnn_pkt.##layer##[##fifth##:##fifth##] = 0; else hdr.bnn_pkt.##layer##[##fifth##:##fifth##] = 1; \
-    if(hdr.bnn_pkt.pop4 >= th) hdr.bnn_pkt.##layer##[##frth##:##frth##] = 0; else hdr.bnn_pkt.##layer##[##frth##:##frth##] = 1; \
-    if(hdr.bnn_pkt.pop5 >= th) hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 0; else hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 1; \
-    if(hdr.bnn_pkt.pop6 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1; \
-    if(hdr.bnn_pkt.pop7 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1;
+    if(hdr.bnn_pkt.pop1 >= th) hdr.bnn_pkt.##layer##[##svn##:##svn##] = 0; else {hdr.bnn_pkt.##layer##[##svn##:##svn##] = 1;hdr.bnn_pkt.l0_popcount = hdr.bnn_pkt.l0_popcount + 1;} \
+    if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##six##:##six##] = 0; else {hdr.bnn_pkt.##layer##[##six##:##six##] = 1;hdr.bnn_pkt.l0_popcount = hdr.bnn_pkt.l0_popcount + 1;} \
+    if(hdr.bnn_pkt.pop3 >= th) hdr.bnn_pkt.##layer##[##fifth##:##fifth##] = 0; else {hdr.bnn_pkt.##layer##[##fifth##:##fifth##] = 1;hdr.bnn_pkt.l0_popcount = hdr.bnn_pkt.l0_popcount + 1;} \
+    if(hdr.bnn_pkt.pop4 >= th) hdr.bnn_pkt.##layer##[##frth##:##frth##] = 0; else {hdr.bnn_pkt.##layer##[##frth##:##frth##] = 1;hdr.bnn_pkt.l0_popcount = hdr.bnn_pkt.l0_popcount + 1;} \
+    if(hdr.bnn_pkt.pop5 >= th) hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 0; else {hdr.bnn_pkt.##layer##[##thrd##:##thrd##] = 1;hdr.bnn_pkt.l0_popcount = hdr.bnn_pkt.l0_popcount + 1;} \
+    if(hdr.bnn_pkt.pop6 >= th) hdr.bnn_pkt.##layer##[##snd##:##snd##] = 0; else {hdr.bnn_pkt.##layer##[##snd##:##snd##] = 1;hdr.bnn_pkt.l0_popcount = hdr.bnn_pkt.l0_popcount + 1;} \
+    if(hdr.bnn_pkt.pop7 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else {hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1;hdr.bnn_pkt.l0_popcount = hdr.bnn_pkt.l0_popcount + 1;}
 
 #define WRITE_SIGN_BIN(frst, snd, layer, th)\
     if(hdr.bnn_pkt.pop2 >= th) hdr.bnn_pkt.##layer##[##frst##:##frst##] = 0; else hdr.bnn_pkt.##layer##[##frst##:##frst##] = 1;\
@@ -136,10 +136,23 @@ control BnnIngress(
 
     table l1_weights{
         actions = { get_bin_weights; }
-        key = { 
+        key = {
             hdr.bnn_pkt.pop_recirc: exact;
             hdr.bnn_pkt.nrs_recirc: exact;
         }
+    }
+
+    /* ---- Confidence Lookup Table (populated by CP) ---- */
+    action set_confidence(bit<8> confident) {
+        hdr.bnn_pkt.is_pred_confident = confident;
+    }
+
+    table confidence_lookup {
+        actions = { set_confidence; }
+        key = {
+            hdr.bnn_pkt.l0_popcount: exact;
+        }
+        default_action = set_confidence(0);
     }
 
     action pop_recirc() {
@@ -169,31 +182,38 @@ control BnnIngress(
 
     action send_back() {
         /*inference terminated*/
-        // bit<48> tmp = hdr.ethernet.dst_addr;
-        // hdr.ethernet.dst_addr = hdr.ethernet.src_addr;
-        // hdr.ethernet.src_addr = tmp;
         ig_tm_md.ucast_egress_port = (bit<9>)CPU_PORT;
+    }
+
+    action drop_pkt() {
+        ig_dprsr_md.drop_ctl = 1;
     }
 
     table egress_behaviour {
         actions = {
-            pop_recirc; nrs_recirc; to_next_layer; send_back;
+            pop_recirc; nrs_recirc; to_next_layer; send_back; drop_pkt;
         }
         key = {
             hdr.bnn_pkt.layer_no: exact;
             hdr.bnn_pkt.pop_recirc: exact;
             hdr.bnn_pkt.nrs_recirc: ternary;
+            hdr.bnn_pkt.is_pred_confident: ternary;
+            hdr.bnn_pkt.l1_out: ternary;
         }
         const entries = {
-            ( 0, WIDTH_IX_L0, HEIGTH_IX_L0 &&& 0xFF ) : to_next_layer();
-            ( 1, WIDTH_IX_L1, HEIGTH_IX_L1 &&& 0xFF ) : send_back();
-            ( 0, WIDTH_IX_L0, 0 &&& 0x00 )            : nrs_recirc();
-            ( 1, WIDTH_IX_L1, 0 &&& 0x00 )            : nrs_recirc();
+            // L0 done → next layer
+            ( 0, WIDTH_IX_L0, HEIGTH_IX_L0 &&& 0xFF, 0 &&& 0x00, 0 &&& 0x00 ) : to_next_layer();
+            // Inference done, confident + legit (bit[1]==0) → drop
+            ( 1, WIDTH_IX_L1, HEIGTH_IX_L1 &&& 0xFF, 1 &&& 0xFF, 0 &&& 0x02 ) : drop_pkt();
+            // Inference done, all other cases → send to CPU
+            ( 1, WIDTH_IX_L1, HEIGTH_IX_L1 &&& 0xFF, 0 &&& 0x00, 0 &&& 0x00 ) : send_back();
+            // L0 intermediate recirculations
+            ( 0, WIDTH_IX_L0, 0 &&& 0x00, 0 &&& 0x00, 0 &&& 0x00 )            : nrs_recirc();
+            // L1 intermediate recirculations
+            ( 1, WIDTH_IX_L1, 0 &&& 0x00, 0 &&& 0x00, 0 &&& 0x00 )            : nrs_recirc();
         }
         const default_action = pop_recirc();
-        // size=(LAST_LAYER_NO+1)+(LAST_LAYER_NO+1);
         size=256;
-
     }
 
     POP_ACCUMULATE(1)
@@ -245,6 +265,7 @@ control BnnIngress(
         } 
         else if(hdr.bnn_pkt.layer_no == 1 && hdr.bnn_pkt.pop_recirc == WIDTH_IX_L1) {
             WRITE_SIGN_BIN(0, 1, l1_out, 0x15)
+            confidence_lookup.apply();
         }
         /* -------------------------------------------------------------------- */
 
