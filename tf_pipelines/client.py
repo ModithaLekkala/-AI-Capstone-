@@ -38,10 +38,12 @@ def group_by_flow(packets):
 def tcp_flags(pkt):
     f = pkt[TCP].flags
     return {
-        'syn': bool(f & 0x02),
-        'ack': bool(f & 0x10),
-        'rst': bool(f & 0x04),
         'fin': bool(f & 0x01),
+        'syn': bool(f & 0x02),
+        'rst': bool(f & 0x04),
+        'psh': bool(f & 0x08),
+        'ack': bool(f & 0x10),
+        'ece': bool(f & 0x40),
     }
 
 def contains_handshake(forward_pkts, reverse_pkts):
@@ -79,8 +81,8 @@ def main():
     parser.add_argument("--count", type=int, default=5000)
     parser.add_argument("--iface", default=FEATURE_EXTRACTOR_PIPE_INTF_INPUT)
     parser.add_argument("--receiving-iface", default=CLIENT_RECEIVING_INTF)
-    parser.add_argument("--src-mac", default="00:00:0a:00:00:01")
-    parser.add_argument("--dst-mac", default="00:00:0a:00:00:02")
+    parser.add_argument("--src-mac", default="da:ba:0e:cd:03:19")
+    parser.add_argument("--dst-mac", default="7c:76:35:28:71:2f")
     parser.add_argument("--tot-flow-packets", type=int, default=16, help="Total number of packets across both directions.")
     parser.add_argument("--balanced", action="store_true", help="If set, split total packets evenly between forward and reverse.")
     parser.add_argument("--timeout", type=float, default=1.0)
@@ -144,8 +146,24 @@ def main():
         return
 
     conf.iface = args.iface
-    total_bytes_fwd = total_bytes_rev = 0
-    sent_count_fwd = sent_count_rev = 0
+
+    # Feature tracking for BNN_FEAT packet
+    sbytes = 0          # Total bytes forward (src -> dst)
+    dbytes = 0          # Total bytes reverse (dst -> src)
+    spkts = 0           # Packet count forward
+    dpkts = 0           # Packet count reverse
+    smaxbytes = 0       # Max packet size forward
+    dmaxbytes = 0       # Max packet size reverse
+    sminbytes = None    # Min packet size forward
+    dminbytes = None    # Min packet size reverse
+
+    # TCP flag counters (across both directions)
+    fin_cnt = 0
+    syn_cnt = 0
+    ack_cnt = 0
+    psh_cnt = 0
+    rst_cnt = 0
+    ece_cnt = 0
 
     print(f'Sending on {args.iface}.')
     print(f'Receiving on {args.receiving_iface}.')
@@ -156,14 +174,29 @@ def main():
             pkt[Ether].src = args.src_mac
             pkt[Ether].dst = args.dst_mac
 
+        # Frame length = IP total_len + 14 (Ethernet header) + 4 (FCS)
         pkt_len_on_wire = len(pkt) + 4  # account for FCS
 
+        # Count TCP flags
+        if TCP in pkt:
+            fl = tcp_flags(pkt)
+            if fl['fin']: fin_cnt += 1
+            if fl['syn']: syn_cnt += 1
+            if fl['ack']: ack_cnt += 1
+            if fl['psh']: psh_cnt += 1
+            if fl['rst']: rst_cnt += 1
+            if fl['ece']: ece_cnt += 1
+
         if side == 'f':
-            total_bytes_fwd += pkt_len_on_wire
-            sent_count_fwd += 1
+            sbytes += pkt_len_on_wire
+            spkts += 1
+            smaxbytes = max(smaxbytes, pkt_len_on_wire)
+            sminbytes = pkt_len_on_wire if sminbytes is None else min(sminbytes, pkt_len_on_wire)
         else:
-            total_bytes_rev += pkt_len_on_wire
-            sent_count_rev += 1
+            dbytes += pkt_len_on_wire
+            dpkts += 1
+            dmaxbytes = max(dmaxbytes, pkt_len_on_wire)
+            dminbytes = pkt_len_on_wire if dminbytes is None else min(dminbytes, pkt_len_on_wire)
 
         print(f"[{idx:03d}] ({'FWD' if side=='f' else 'REV'}) "
               f"len={pkt_len_on_wire}  {pkt.summary()}...", end='')
@@ -181,10 +214,38 @@ def main():
             started_callback=sendp_callback
         )
 
-    print("\n--- Stats ---")
-    print(f"Forward packets: {sent_count_fwd} | Total bytes: {total_bytes_fwd} | Avg: {total_bytes_fwd/max(sent_count_fwd,1):.2f}")
-    print(f"Reverse packets: {sent_count_rev} | Total bytes: {total_bytes_rev} | Avg: {total_bytes_rev/max(sent_count_rev,1):.2f}")
-    print(f"Last TTL forward: {fwd_last_ttl} | Last TTL reverse: {rev_last_ttl}")
+    # Handle case where no packets in one direction
+    sminbytes = sminbytes if sminbytes is not None else 0
+    dminbytes = dminbytes if dminbytes is not None else 0
+
+    # Compute mean sizes
+    smeansz = sbytes // spkts if spkts > 0 else 0
+    dmeansz = dbytes // dpkts if dpkts > 0 else 0
+
+    print("\n" + "="*60)
+    print("EXPECTED BNN_FEAT PACKET VALUES (ethertype 0x2324)")
+    print("="*60)
+    print(f"{'Feature':<15} {'Value':>10}   {'Description'}")
+    print("-"*60)
+    print(f"{'sbytes':<15} {sbytes:>10}   Total bytes (src -> dst)")
+    print(f"{'dbytes':<15} {dbytes:>10}   Total bytes (dst -> src)")
+    print(f"{'spkts':<15} {spkts:>10}   Packet count (src -> dst)")
+    print(f"{'dpkts':<15} {dpkts:>10}   Packet count (dst -> src)")
+    print(f"{'smeansz':<15} {smeansz:>10}   Mean size (src -> dst)")
+    print(f"{'dmeansz':<15} {dmeansz:>10}   Mean size (dst -> src)")
+    print(f"{'smaxbytes':<15} {smaxbytes:>10}   Max packet size (src -> dst)")
+    print(f"{'dmaxbytes':<15} {dmaxbytes:>10}   Max packet size (dst -> src)")
+    print(f"{'sminbytes':<15} {sminbytes:>10}   Min packet size (src -> dst)")
+    print(f"{'dminbytes':<15} {dminbytes:>10}   Min packet size (dst -> src)")
+    print(f"{'fin_cnt':<15} {fin_cnt:>10}   FIN flag count")
+    print(f"{'syn_cnt':<15} {syn_cnt:>10}   SYN flag count")
+    print(f"{'ack_cnt':<15} {ack_cnt:>10}   ACK flag count")
+    print(f"{'psh_cnt':<15} {psh_cnt:>10}   PSH flag count")
+    print(f"{'rst_cnt':<15} {rst_cnt:>10}   RST flag count")
+    print(f"{'ece_cnt':<15} {ece_cnt:>10}   ECE flag count")
+    print("="*60)
+    print(f"Note: smeansz/dmeansz are computed by CP (not in dataplane)")
+    print(f"Note: Values may differ slightly due to P4 register timing")
 
 if __name__ == "__main__":
     main()
