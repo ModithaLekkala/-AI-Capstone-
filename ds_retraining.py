@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import time
 import numpy as np
 import pandas as pd
 import torch
@@ -131,7 +132,9 @@ def main():
     print(f"SHAP feature indices: {shap_feat_idx[:10]}...")  # Show first 10
     
     print(f"\nTraining BNN student (SHAP features)")
+    base_training_start = time.perf_counter()
     res = binocular_shap.train(X_tr[:,shap_feat_idx], Y_tr, verbose=True)
+    base_training_time = time.perf_counter() - base_training_start
     pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.m}_train_accuracies.csv')
     
     # Save pre-retraining models
@@ -308,11 +311,24 @@ def main():
             
             # Create new trainer instance for retraining
             print("\nCreating new SHAP BNN trainer instance for retraining...")
+            retraining_start = time.perf_counter()
             retrained_bnn_shap = SimpleTrainer(f'{args.m}', 'cpu')
             retrained_bnn_shap.reset_model()
             retrained_bnn_shap.epochs = RETRAINING_EPOCHS
             res=retrained_bnn_shap.train(retrain_X[:, shap_feat_idx], retrain_Y, verbose=True)
+            retraining_time = time.perf_counter() - retraining_start
             pd.DataFrame(res['train_accuracies'], columns=['batch_accuracies']).to_csv(f'{RES_DIR}/{args.m}_retrain_accuracies.csv')
+
+            # Save timing measurements
+            timing_data = {
+                'phase': ['base_student_bnn_training', 'teacher_label_student_retraining'],
+                'time_seconds': [base_training_time, retraining_time],
+                'epochs': [binocular_shap.epochs, RETRAINING_EPOCHS]
+            }
+            pd.DataFrame(timing_data).to_csv(f'{RES_DIR}/{args.m}_time.csv', index=False)
+            print(f"\nTiming saved to {RES_DIR}/{args.m}_time.csv")
+            print(f"  Base student BNN training: {base_training_time:.2f}s ({binocular_shap.epochs} epochs)")
+            print(f"  Teacher label + student retraining: {retraining_time:.2f}s ({RETRAINING_EPOCHS} epochs)")
 
             # Create new trainer instance for retraining
             print("\nCreating new SHAP BNN trainer instance NO CONFIDENCE for retraining...")
@@ -379,6 +395,18 @@ def main():
     pd.DataFrame(shap_no_conf_results).to_csv(f'{RES_DIR}/{args.m}_no_conf_results.csv', index=False)
     pd.DataFrame(teacher_results).to_csv(f'{RES_DIR}/teacher_results.csv', index=False)
     pd.DataFrame(rand_results).to_csv(f'{RES_DIR}/{args.m}_random_results.csv', index=False)
+
+    # Save timing if retraining didn't happen (fallback)
+    if not retraining_completed:
+        timing_data = {
+            'phase': ['base_student_bnn_training', 'teacher_label_student_retraining'],
+            'time_seconds': [base_training_time, None],
+            'epochs': [binocular_shap.epochs, None]
+        }
+        pd.DataFrame(timing_data).to_csv(f'{RES_DIR}/{args.m}_time.csv', index=False)
+        print(f"\nTiming saved to {RES_DIR}/{args.m}_time.csv")
+        print(f"  Base student BNN training: {base_training_time:.2f}s ({binocular_shap.epochs} epochs)")
+        print(f"  Teacher label + student retraining: N/A (retraining threshold not met)")
 
     with open(f'{RES_DIR}/config.json', 'w') as f:
         curr_config = {
