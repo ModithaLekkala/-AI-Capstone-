@@ -224,4 +224,6 @@ feature_indices.json
 last_selected_features.json
 shaps*
 results*
+.claude/*
+.claudeignore
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,virtualenv
