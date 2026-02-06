@@ -189,6 +189,7 @@ control BnnIngress(
         ig_dprsr_md.drop_ctl = 1;
     }
 
+    /* handles recirculations and egress behavior */
     table egress_behaviour {
         actions = {
             pop_recirc; nrs_recirc; to_next_layer; send_back; drop_pkt;

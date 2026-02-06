@@ -33,14 +33,9 @@ header bnn_pkt {
     bit<8> l0_out_4;
     bit<8> l0_out_5;
     bit<8> l0_out_6;
-    
-
     bit<8> l1_out;
 
-    // Accumulated popcount of layer 0 output (max 42 for 42 neurons)
     bit<8> l0_popcount;
-
-    // Confidence flag set by CP-populated table based on l1_out and l0_popcount
     bit<8> is_pred_confident;
 
     bit<16> input_offset;
@@ -56,9 +51,6 @@ header bnn_pkt {
     popcount_t pop5;
     popcount_t pop6;
     popcount_t pop7;
-    
-    // @flexible
-    // bit<6> padding;
 }
 
 struct bnn_headers_t {

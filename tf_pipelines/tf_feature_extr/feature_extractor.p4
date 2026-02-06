@@ -1,7 +1,7 @@
 /* -*- P4_16 -*- */
 #include <core.p4>
 #include <tna.p4>
-#include "../common/headers.p4"
+// #include "../common/headers.p4"
 #include "include/common/headers.p4"
 #include "include/hash_flows.p4"
 #include "include/stats/bytes.p4"
@@ -102,4 +102,4 @@ Pipeline(
     CollectorEgress(),
     CollectorEgressDeparser()
 ) features_collector;
-Switch(features_collector) main;
+// Switch(features_collector) main;
