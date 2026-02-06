@@ -8,7 +8,7 @@ if [ $# -lt 1 ]; then
   exit 1
 fi
 
-# If $2 is empty OR equals "bmv2", pick BMv2/v1model; otherwise use Tofino/TNA
+# If $2 is empty OR equals "tna", pick Tofino/TNA; otherwise use BMv2/v1model
 if [ "$2" == "bmv2" ]; then
   echo "Target used: BMv2/v1model."
   compiler="p4c-bmv2"

@@ -127,7 +127,7 @@ class BNNWide(Packet):
 
 class BNNDense(Packet):
     name = "BNN_pkt"
-    fields_desc = [ 
+    fields_desc = [
         # first bit of this field is for padding
         ByteField("layer_no", 0),
         ByteField("l0_out_1", 0),
@@ -136,8 +136,11 @@ class BNNDense(Packet):
         ByteField("l0_out_4", 0),
         ByteField("l0_out_5", 0),
         ByteField("l0_out_6", 0),
-        
+
         ByteField("l1_out", 0),
+
+        ByteField("l0_popcount", 0),
+        ByteField("is_pred_confident", 0),
 
         ShortField("input_offset", 0),
         ShortField("input_offset_cp", 0),
@@ -151,7 +154,7 @@ class BNNDense(Packet):
         ByteField("pop4", 0),
         ByteField("pop5", 0),
         ByteField("pop6", 0),
-        ByteField("pop7", 0),   
+        ByteField("pop7", 0),
     ]
 
 class BNNTiny(Packet):

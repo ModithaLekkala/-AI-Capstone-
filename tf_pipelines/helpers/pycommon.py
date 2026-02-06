@@ -139,6 +139,9 @@ class BNNDense(Packet):
         
         ByteField("l1_out", 0),
 
+        ByteField("l0_popcount", 0),
+        ByteField("is_pred_confident", 0),
+
         ShortField("input_offset", 0),
         ShortField("input_offset_cp", 0),
 
