@@ -16,3 +16,6 @@ dependencies = [
     "shap==0.44.1",
     "torch==2.2.0",
 ]
+
+[tool.setuptools]
+packages = ["helpers", "ml_helpers"]

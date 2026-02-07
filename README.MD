@@ -8,6 +8,7 @@ This work is in collaboration with:
 ## Dependencies
 - Supported Python versions: 3.8, 3.10
 - `pip install -r requirements.txt` to install python dependencies.
+- `pip install -e .` to install project in editable mode.
 - `bash init.sh` in order to download and prepare datasets.
 
 ## Replicate models dynamic retraining and evaluation. 

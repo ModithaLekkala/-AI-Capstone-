@@ -28,6 +28,9 @@ class BNNPipeline():
 
         self.bnn_input_reg = self.p4_bnn_exec.BnnIngress.bnn_input_reg
 
+        # Confidence lookup table
+        self.bfrt_confidence_lookup = self.p4_bnn_exec.BnnIngress.confidence_lookup
+
         self.w1 = None
         self.w2 = None
         if(self.bnn_model == 'wide'):
@@ -84,6 +87,42 @@ class BNNPipeline():
             print(f'{i} loaded 14-bit combination', sep=' ', end='\r', flush=True)
 
         print("→ Done loading pop1..pop4 (all 16-bit keys → 1-hex-digit popcount).\n")
+
+    @staticmethod
+    def extract_weights_hex(model):
+        """Convert BNN Brevitas weights to hex strings for P4 table loading.
+
+        Returns: (l1_w_hex, l2_w_hex) — lists of hex strings per neuron.
+        """
+        import torch
+        bin_weights = model.get_bin_weights()  # List of QuantTensors
+        hex_layers = []
+        for layer_quant in bin_weights:
+            w = layer_quant.value.detach()          # shape: [out_features, in_features]
+            w_bin = ((w + 1) / 2).int()             # {-1,+1} → {0,1}
+            layer_hex = []
+            for neuron_idx in range(w_bin.shape[0]):
+                bits = ''.join(str(b.item()) for b in w_bin[neuron_idx])
+                hex_str = f'{int(bits, 2):0{(len(bits) + 3) // 4}x}'
+                layer_hex.append(hex_str)
+            hex_layers.append(layer_hex)
+        return hex_layers[0], hex_layers[1]  # (l1_w, l2_w)
+
+    def load_confidence_tb(self, confident_scores):
+        """Populate confidence_lookup: confident popcount values → is_pred_confident=1."""
+        print('POPULATE CONFIDENCE LOOKUP TABLE')
+        for score in confident_scores:
+            self.bfrt_confidence_lookup.add_with_set_confidence(
+                f'{int(score)}', f'1'
+            )
+        print(f"→ Done loading confidence_lookup ({len(confident_scores)} confident popcount values).\n")
+
+    def clear_weights_tb(self):
+        """Clear weight and confidence table entries for redeployment."""
+        self.bfrt_l0_weights.clear()
+        self.bfrt_l1_weights.clear()
+        self.bfrt_confidence_lookup.clear()
+        print("→ Cleared weight and confidence tables.\n")
 
     def load_weights_last_layer(self, l2_w):
         print('POPULATE LAST WEIGHTS TABLE')
