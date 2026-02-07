@@ -197,7 +197,9 @@ def create_comparison_plot(arch, dataset):
         'axes.facecolor': 'white',
         'font.size': 22,
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42
     })
     
     n_metrics = len(metrics)

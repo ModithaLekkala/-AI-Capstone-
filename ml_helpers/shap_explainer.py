@@ -213,7 +213,9 @@ class ShapExplainer:
         plt.rcParams.update({
             'font.size': 28,
             'font.family': 'sans-serif',
-            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+            'pdf.fonttype': 42,
+            'ps.fonttype': 42
         })
         plt.figure(figsize=(8, 5))
         shap.summary_plot(values[:, :, cls_for_plot], X_ex_df, feature_names=feature_names_plot, show=False, max_display=max_display)

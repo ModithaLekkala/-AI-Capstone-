@@ -130,7 +130,9 @@ def plot_distribution_shift_bnn(dir, model, filename=None, enable_bnn_random_plo
     plt.rcParams.update({
         'font.size': 26,
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42
     })
     fig, ax = plt.subplots(figsize=(9, 6))
 
@@ -214,7 +216,9 @@ def plot_distribution_shift_model(dir, filename, model_name):
     plt.rcParams.update({
         'font.size': 26,
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42
     })
     
     # Single-axis plot: Model accuracies, vertical line at first mixed batch
@@ -243,7 +247,9 @@ def plot_distribution_shift_model(dir, filename, models,rw=10, metric='f1'):
     plt.rcParams.update({
         'font.size': 26,
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42
     })
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.set_xlabel('Batch Number')
@@ -323,7 +329,9 @@ def plot_training_accuracies(dir, model, filename, out):
     plt.rcParams.update({
         'font.size': 34,
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42
     })
 
     fig, ax = plt.subplots(figsize=(14, 8))
@@ -362,7 +370,9 @@ def plot_confidence_scores(dir, model):
     plt.rcParams.update({
         'font.size': 30,
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42
     })
     
     fig, ax1 = plt.subplots(figsize=(8, 5))
@@ -500,7 +510,9 @@ def plot_retraining_comparison_bars(directory, model, filename):
     plt.rcParams.update({
         'font.size': 30,
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+        'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42
     })
     
     fig, ax = plt.subplots(figsize=(8, 5))

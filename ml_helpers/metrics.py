@@ -75,7 +75,9 @@ class MetricsManager():
         plt.rcParams.update({
             'font.size': 18,
             'font.family': 'sans-serif',
-            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+            'pdf.fonttype': 42,
+            'ps.fonttype': 42
         })
         plt.figure(figsize=(8, 5))
 
@@ -232,7 +234,9 @@ class MetricsManager():
         plt.rcParams.update({
             'font.size': 18,
             'font.family': 'sans-serif',
-            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+            'pdf.fonttype': 42,
+            'ps.fonttype': 42
         })
         now = datetime.now().strftime("%d-%H%M%S")
         out = f"{self.res_dir}/plots_{self.dataset}/training_loss_{self.model_name}_{self.model_arch}_{self.dataset}_{now}.png"
@@ -257,7 +261,9 @@ class MetricsManager():
         plt.rcParams.update({
             'font.size': 24,  # Increased font size for better readability
             'font.family': 'sans-serif',
-            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+            'pdf.fonttype': 42,
+            'ps.fonttype': 42
         })
         
         n_matrices = len(self.cases[case]['cms'])
@@ -369,7 +375,9 @@ class MetricsManager():
         plt.rcParams.update({
             'font.size': 20,  # Reduced font size to fit more content
             'font.family': 'sans-serif',
-            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
+            'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif'],
+            'pdf.fonttype': 42,
+            'ps.fonttype': 42
         })
         fig, ax1 = plt.subplots(figsize=(14, 8))
         
