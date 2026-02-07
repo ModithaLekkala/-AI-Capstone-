@@ -6,18 +6,16 @@ This work is in collaboration with:
 - Lorenzo Pappone and Flavio Esposito from Saint Louis University, Missouri, USA
 
 ## Dependencies
-- Supported Python versions: 3.8, 3.10
+- Supported Python version: 3.10
 - `pip install -r requirements.txt` to install python dependencies.
 - `pip install -e .` to install project in editable mode.
-- `bash init.sh` in order to download and prepare datasets.
+- `bash init.sh` to download and prepare datasets.
 
 ## Replicate models dynamic retraining and evaluation. 
 After dependecies installation.
-- `python simple_cross_dataset_eval --help` to train BNNs in a distribution shift environment.
-- `python plot_cross_dataset_eval --dir results/simple_cross_dataset_eval_<arch>` to plot the corresponding results.
-
-## BNN and MLP training and evaluation with SHAP.
-- `python shap_training_test --help` to train BNNs on a fixed dataset.
+- `python ds_retraining.py --help` to train BNNs in a distribution shift environment.
+- `python ds_ablation_plot --dir results/simple_cross_dataset_eval_<arch>` to plot the corresponding ablation results.
+- `python ds_plot -m netbeacon binocular_dense quark` to plot the comparison plots.
 
 ## Launch feature_collector and/or bnn_executor via multi-pipeline p4 program.
 1) After cloning the repository: `cd binocular/tf_pipelines`
@@ -25,7 +23,7 @@ After dependecies installation.
 3) Run `sudo bash $SDE_INSTALL/bin/veth_setup.sh`, then compile and install the program on tofino SDE with `sudo bash workflow.sh`
 4) Launch the tofino model into an external terminal running `bash $SDE/run_tofino_model.sh -p multipipe_inetml -f binocular/tf_pipelines/ports.json`
 5) Launch switch on external terminal running `bash $SDE/run_switchd.sh -p multipipe_inetml`
-6) Launch controller setup on external terminal running ``bash $SDE/run_bfshell.sh -b `pwd`/tf_pipelines/controller_adv.py``
+6) Launch controller setup on external terminal running ``bash $SDE/run_bfshell.sh -b `pwd`/tf_pipelines/controller_retrain.py``
     - test a. single flow feature extractor + bnn executor: `sudo python tf_pipelines/client.py --pcap <pcapfile_path>`
     - test b. multiple flows bnn executor test:  `sudo python tf_pipelines/client_send_flows.py` 
 
@@ -35,5 +33,5 @@ After dependecies installation.
 
 ## Docker image
 - If **colima** is used: `colima start --arch x86_64 --cpu 4 --memory 8 --disk 100`
-- Binocular is based on the **sde** image: https://git.unistra.fr/maximefriess/p4-lab.git
+- Binocular is based on the **sde** image @ https://git.unistra.fr/maximefriess/p4-lab.git
 - Run container with: `sudo docker run --privileged --rm -it -v $(pwd):/binocular binocular`
