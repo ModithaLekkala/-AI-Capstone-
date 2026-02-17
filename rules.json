@@ -1,0 +1,245 @@
+[
+    {
+        "table": "decision_table",
+        "match": {
+            "win_maxlength": [
+                "0x36",
+                "0xffffffff"
+            ],
+            "win_minlength": [
+                "0x36",
+                "0xffffffff"
+            ],
+            "win_psh": [
+                "0x0",
+                "0x0"
+            ],
+            "win_pkglength": [
+                "0x10e",
+                "0xffffffff"
+            ],
+            "win_pkgcount": [
+                "0x5",
+                "0xffffffff"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Regla A: Ataque de 'Low-rate DoS'. Se activa con 5 paquetes peque\u00f1os id\u00e9nticos sin PSH."
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_maxlength": [
+                "0xc8",
+                "0xffffffff"
+            ],
+            "win_minlength": [
+                "0x64",
+                "0xffffffff"
+            ],
+            "win_psh": [
+                "0x2",
+                "0xff"
+            ],
+            "win_pkglength": [
+                "0x1b2",
+                "0xffffffff"
+            ],
+            "win_pkgcount": [
+                "0x3",
+                "0xffffffff"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Regla B: Ataque de 'Perfil Mixto'. Se activa con 3 paquetes de tama\u00f1o variado, 2 de ellos con PSH."
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_pkgcount": [
+                "0x0",
+                "0xfffffff0"
+            ],
+            "win_pkglength": [
+                "0x0",
+                "0x0"
+            ],
+            "win_maxlength": [
+                "0x0",
+                "0xfffffe00"
+            ],
+            "win_minlength": [
+                "0x0",
+                "0xfffffff8"
+            ],
+            "win_psh": [
+                "0x0",
+                "0x0"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Generated Rule #1 approximating: win_minlength <= 8.50 AND win_maxlength <= 419.50 AND win_minlength <= 4.00 AND win_pkgcount <= 11.50 AND win_maxlength <= 283.50"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_pkgcount": [
+                "0x0",
+                "0xfffffff0"
+            ],
+            "win_pkglength": [
+                "0x0",
+                "0x0"
+            ],
+            "win_maxlength": [
+                "0x0",
+                "0xfffffe00"
+            ],
+            "win_minlength": [
+                "0x0",
+                "0xfffffff8"
+            ],
+            "win_psh": [
+                "0x0",
+                "0x0"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Generated Rule #2 approximating: win_minlength <= 8.50 AND win_maxlength <= 419.50 AND win_minlength <= 4.00 AND win_pkgcount <= 11.50 AND win_maxlength > 283.50"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_pkgcount": [
+                "0x0",
+                "0xfffffffc"
+            ],
+            "win_pkglength": [
+                "0x0",
+                "0x0"
+            ],
+            "win_maxlength": [
+                "0x0",
+                "0xfffffe00"
+            ],
+            "win_minlength": [
+                "0x8",
+                "0xfffffff8"
+            ],
+            "win_psh": [
+                "0x0",
+                "0x0"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Generated Rule #3 approximating: win_minlength <= 8.50 AND win_maxlength <= 419.50 AND win_minlength > 4.00 AND win_pkgcount <= 3.50 AND win_minlength > 7.50"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_pkgcount": [
+                "0x4",
+                "0xfffffffc"
+            ],
+            "win_pkglength": [
+                "0x0",
+                "0xffffffc0"
+            ],
+            "win_maxlength": [
+                "0x0",
+                "0xfffffe00"
+            ],
+            "win_minlength": [
+                "0x0",
+                "0xfffffff8"
+            ],
+            "win_psh": [
+                "0x0",
+                "0x0"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Generated Rule #4 approximating: win_minlength <= 8.50 AND win_maxlength <= 419.50 AND win_minlength > 4.00 AND win_pkgcount > 3.50 AND win_pkglength <= 39.00"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_pkgcount": [
+                "0x0",
+                "0x0"
+            ],
+            "win_pkglength": [
+                "0x0",
+                "0xfffff800"
+            ],
+            "win_maxlength": [
+                "0x0",
+                "0xfffffc00"
+            ],
+            "win_minlength": [
+                "0x0",
+                "0xfffffff0"
+            ],
+            "win_psh": [
+                "0x0",
+                "0x0"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Generated Rule #5 approximating: win_minlength <= 8.50 AND win_maxlength > 419.50 AND win_maxlength <= 640.50 AND win_maxlength > 639.50 AND win_pkglength > 1126.50"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_pkgcount": [
+                "0x0",
+                "0x0"
+            ],
+            "win_pkglength": [
+                "0x0",
+                "0xfffffc00"
+            ],
+            "win_maxlength": [
+                "0x0",
+                "0x0"
+            ],
+            "win_minlength": [
+                "0x0",
+                "0xfffffe00"
+            ],
+            "win_psh": [
+                "0x0",
+                "0x0"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Generated Rule #6 approximating: win_minlength > 8.50 AND win_minlength > 184.50 AND win_minlength <= 1856.00 AND win_pkglength <= 784.00 AND win_minlength > 346.00"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_pkgcount": [
+                "0x0",
+                "0x0"
+            ],
+            "win_pkglength": [
+                "0x0",
+                "0x0"
+            ],
+            "win_maxlength": [
+                "0x0",
+                "0x0"
+            ],
+            "win_minlength": [
+                "0x0",
+                "0xfffff800"
+            ],
+            "win_psh": [
+                "0x0",
+                "0x0"
+            ]
+        },
+        "action_name": "drop",
+        "comment": "Generated Rule #7 approximating: win_minlength > 8.50 AND win_minlength > 184.50 AND win_minlength > 1856.00"
+    }
+]
