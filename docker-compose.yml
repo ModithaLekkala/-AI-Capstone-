@@ -1,0 +1,23 @@
+# docker-compose.yml
+# Usage:
+#   docker compose up -d      → start container in background
+#   docker compose exec ids bash  → open a shell inside it
+#   docker compose down       → stop and remove container
+
+services:
+  ids:
+    build: .
+    image: p4-ids
+    container_name: p4-ids-dev
+    hostname: p4-ids-dev
+    stdin_open: true          # Keep stdin open (like docker run -i)
+    tty: true                 # Allocate pseudo-TTY (like docker run -t)
+    privileged: true          # Required for ip link commands (veth creation)
+    # Mount repo live into container — edit files in VS Code, run instantly
+    volumes:
+      - .:/workspace
+    # Keep the container alive even after entrypoint finishes
+    command: /bin/bash
+    # Optional: forward a port if you add a REST API or dashboard later
+    # ports:
+    #   - "8080:8080"
