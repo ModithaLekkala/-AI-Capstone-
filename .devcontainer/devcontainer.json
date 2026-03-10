@@ -1,0 +1,37 @@
+{
+  // VS Code Dev Container configuration
+  // This lets VS Code open the project INSIDE the Docker container.
+  // Press F1 → "Dev Containers: Reopen in Container" to activate.
+
+  "name": "P4 IDS Dev Container",
+
+  // Use the docker-compose.yml we already have
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "ids",
+  "workspaceFolder": "/workspace",
+
+  // VS Code extensions to auto-install inside the container
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",           // Python intellisense + linting
+        "ms-python.pylint",
+        "secanis.p4-lang",            // P4 syntax highlighting
+        "ms-azuretools.vscode-docker",// Docker sidebar
+        "mhutchie.git-graph"          // Git history viewer
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.tabSize": 4,
+        "editor.rulers": [100]
+      }
+    }
+  },
+
+  // Run after container starts — ensures veth pair is ready
+  "postStartCommand": "bash /usr/local/bin/docker-entrypoint.sh",
+
+  // Needed for ip link / veth creation
+  "runArgs": ["--privileged"]
+}
