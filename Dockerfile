@@ -20,14 +20,7 @@ RUN apt-get update && apt-get install -y \
 # ---- Python dependencies ----
 # scapy: packet crafting (inject.py)
 # If you add ML scripts later, uncomment sklearn/pandas/numpy
-RUN pip3 install --upgrade pip && \
-    pip3 install \
-        scapy \
-        # scikit-learn \
-        # pandas \
-        # numpy \
-        # matplotlib \
-        ;
+RUN pip3 install scapy==2.4.5
 
 # ---- Working directory ----
 WORKDIR /workspace

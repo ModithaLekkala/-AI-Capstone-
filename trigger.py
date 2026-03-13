@@ -1,15 +1,10 @@
-#trigger.py
 import json
 import subprocess
 
-# --- CONFIGURACIÓN CORREGIDA ---
-# Nombres exactos basados en tu código P4
+# --- CONFIGURATION ---
 JSON_FILE = "rules.json"
-P4_TABLE = "ingress.decision_table"  # Nombre completo y correcto de la tabla
-P4_ACTION_PREFIX = "ingress."       # Prefijo correcto para las acciones
-
-# LA LISTA DE CLAVES CORRECTA Y EN ORDEN
-# Esta lista debe coincidir EXACTAMENTE con la definición 'key' en tu tabla P4
+P4_TABLE = "ingress.decision_table"
+P4_ACTION_PREFIX = "ingress."
 FIELD_ORDER = [
     "win_maxlength",
     "win_minlength",
@@ -17,80 +12,70 @@ FIELD_ORDER = [
     "win_pkglength",
     "win_pkgcount"
 ]
+DEFAULT_PRIORITY = "10"
 
-# La prioridad es importante para las reglas ternarias (ternary)
-DEFAULT_PRIORITY = "10" 
 
 def format_rule_entry(rule):
-    """
-    Formatea una regla JSON en un comando válido para simple_switch_CLI.
-    """
     action_name = rule.get("action_name")
     if not action_name:
         raise ValueError("Falta 'action_name' en la regla")
-
     match_fields_str = ""
     for field in FIELD_ORDER:
         if field in rule["match"]:
-            # El formato para ternary/range en simple_switch_CLI es valor&&&mascara
             low, mask = rule["match"][field]
-            match_fields_str += f" {low}&&&{mask}"
+            match_fields_str += " {}&&&{}".format(low, mask)
         else:
-            raise ValueError(f"Campo faltante en JSON: {field}")
-    
-    # Construye el nombre completo de la acción: "ingress." + "drop" -> "ingress.drop"
+            raise ValueError("Campo faltante en JSON: {}".format(field))
     full_action_name = P4_ACTION_PREFIX + action_name
-    
-    # Construye el comando final
-    cmd = f"table_add {P4_TABLE} {full_action_name}{match_fields_str} => {DEFAULT_PRIORITY}"
-    
+    cmd = "table_add {} {}{} => {}".format(
+        P4_TABLE, full_action_name, match_fields_str, DEFAULT_PRIORITY)
     return cmd
 
+
 def load_rules_to_switch(json_file):
-    """
-    Carga las reglas del archivo JSON al switch usando simple_switch_CLI.
-    """
     try:
         with open(json_file, "r") as f:
             rules = json.load(f)
     except FileNotFoundError:
-        print(f"[ERROR] No se pudo encontrar el archivo de reglas: {json_file}")
+        print("[ERROR] No se pudo encontrar el archivo de reglas: {}".format(json_file))
         return
-    except json.JSONDecodeError:
-        print(f"[ERROR] El archivo {json_file} no es un JSON válido.")
+    except ValueError:
+        print("[ERROR] El archivo {} no es un JSON valido.".format(json_file))
         return
 
     valid_cmds = []
-    print(f"Procesando {len(rules)} reglas desde {json_file}...")
+    print("Procesando {} reglas desde {}...".format(len(rules), json_file))
+
     for i, rule in enumerate(rules):
         try:
             cmd = format_rule_entry(rule)
             valid_cmds.append(cmd)
+            print("  [OK] Regla #{}: {}".format(i + 1, cmd))
         except Exception as e:
-            print(f"[ERROR] Regla #{i+1} descartada: {e}")
+            print("  [ERROR] Regla #{} descartada: {}".format(i + 1, e))
 
-    print(f"\n{len(valid_cmds)} reglas válidas serán insertadas...\n")
+    print("\n{} reglas validas seran insertadas...\n".format(len(valid_cmds)))
 
     if not valid_cmds:
-        print("No hay comandos válidos para ejecutar.")
+        print("No hay comandos validos para ejecutar.")
         return
 
-    # Conecta con el CLI del switch y envía todos los comandos
     cli_input = "\n".join(valid_cmds) + "\nexit\n"
+
     process = subprocess.Popen(
         ["simple_switch_CLI"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
+        stderr=subprocess.PIPE
     )
-    stdout, stderr = process.communicate(input=cli_input)
+    stdout, stderr = process.communicate(input=cli_input.encode())
 
     print("--- SALIDA DEL SWITCH ---")
-    print(stdout)
+    print(stdout.decode())
     if stderr:
         print("--- ERRORES DEL SWITCH ---")
-        print(stderr)
+        print(stderr.decode())
+
 
 if __name__ == "__main__":
     load_rules_to_switch(JSON_FILE)

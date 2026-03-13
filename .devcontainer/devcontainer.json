@@ -1,37 +1,35 @@
 {
-  // VS Code Dev Container configuration
-  // This lets VS Code open the project INSIDE the Docker container.
-  // Press F1 → "Dev Containers: Reopen in Container" to activate.
-
   "name": "P4 IDS Dev Container",
 
-  // Use the docker-compose.yml we already have
-  "dockerComposeFile": "../docker-compose.yml",
-  "service": "ids",
+  // Build directly from Dockerfile — simpler than docker-compose
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+
+  // Required for ip link / veth creation inside the container
+  "runArgs": ["--privileged"],
+
   "workspaceFolder": "/workspace",
 
-  // VS Code extensions to auto-install inside the container
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ],
+
+  // Run entrypoint after container starts to set up veth pair + compile P4
+  "postStartCommand": "bash /usr/local/bin/docker-entrypoint.sh || true",
+
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-python.python",           // Python intellisense + linting
-        "ms-python.pylint",
-        "secanis.p4-lang",            // P4 syntax highlighting
-        "ms-azuretools.vscode-docker",// Docker sidebar
-        "mhutchie.git-graph"          // Git history viewer
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "secanis.p4-lang"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/bin/python3",
-        "terminal.integrated.defaultProfile.linux": "bash",
-        "editor.tabSize": 4,
-        "editor.rulers": [100]
+        "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
-  },
-
-  // Run after container starts — ensures veth pair is ready
-  "postStartCommand": "bash /usr/local/bin/docker-entrypoint.sh",
-
-  // Needed for ip link / veth creation
-  "runArgs": ["--privileged"]
+  }
 }
