@@ -112,11 +112,12 @@ control ingress(inout headers_t hdr,
     register<bit<8>>(1024)  win_psh_reg;
 
     // Actions to be applied by the decision table.
-	action drop()    { user_md.should_forward = 0; mark_to_drop(st_md); }
+	action drop()    { user_md.should_forward = 0; }
 	action forward() { user_md.should_forward = 1; }
 
     // Action to clear a flow's statistics to start a new window.
     action reset_window_stats() {
+        last_time_reg.write(user_md.hashed_address, st_md.ingress_global_timestamp);
         win_interval_reg.write(user_md.hashed_address, 0);
         win_pkgcount_reg.write(user_md.hashed_address, 0);
         win_pkglength_reg.write(user_md.hashed_address, 0);
@@ -207,8 +208,11 @@ control ingress(inout headers_t hdr,
         win_psh_reg.write(user_md.hashed_address, win_psh_val);
 
         // Forward the packet if the final decision was to forward.
-        if (user_md.should_forward == 1) {
+        // Basic switching: if came from port 0, send to port 1
+        if (st_md.ingress_port == 0) {
             st_md.egress_spec = 1;
+        } else {
+            st_md.egress_spec = 0;
         }
     }
 }

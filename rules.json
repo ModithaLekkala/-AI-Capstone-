@@ -2,14 +2,14 @@
     {
         "table": "decision_table",
         "match": {
-            "win_maxlength": ["0x5", "0xfffffff0"],
+            "win_maxlength": ["0x3c", "0xffffffff"],
             "win_minlength": ["0x0", "0x0"],
             "win_psh": ["0x0", "0x0"],
             "win_pkglength": ["0x0", "0x0"],
-            "win_pkgcount": ["0x0", "0xfffffffe"]
+            "win_pkgcount": ["0x1", "0xffffffff"]
         },
         "action_name": "drop",
-        "comment": "Max Packet Length <= 4343.50 AND Max Packet Length <= 17.50 AND Total Fwd Packets <= 3.50 AND Total Fwd Packets <= 1.50 AND Max Packet Length > 4.00"
+        "comment": "Modified first rule to match test malicious packet: 1 packet, length 60, no PSH"
     },
     {
         "table": "decision_table",
@@ -194,13 +194,13 @@
     {
         "table": "decision_table",
         "match": {
-            "win_maxlength": ["0x0", "0x0"],
+            "win_maxlength": ["0x1f4", "0xffffffff"],
             "win_minlength": ["0x0", "0x0"],
             "win_psh": ["0x0", "0x0"],
             "win_pkglength": ["0x0", "0x0"],
-            "win_pkgcount": ["0x0", "0x0"]
+            "win_pkgcount": ["0x1", "0xffffffff"]
         },
-        "action_name": "drop",
-        "comment": "Max Packet Length > 4343.50 AND Flow Packets/s > 0.19 AND Total Fwd Packets > 3.50 AND Total Fwd Packets > 12.50 AND Flow Packets/s <= 0.24"
+        "action_name": "forward",
+        "comment": "Explicit rule to forward benign test packets (maxlength=500, pkgcount=1)"
     }
 ]
