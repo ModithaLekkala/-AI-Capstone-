@@ -162,24 +162,6 @@ control ingress(inout headers_t hdr,
         win_maxlength_reg.read(win_maxlength_val, user_md.hashed_address);
         win_minlength_reg.read(win_minlength_val, user_md.hashed_address);
         win_psh_reg.read(win_psh_val, user_md.hashed_address);
-        
-        // Update stats with data from the current packet.
-        win_pkgcount_val = win_pkgcount_val + 1;
-        win_pkglength_val = win_pkglength_val + st_md.packet_length;
-        win_psh_val = win_psh_val + psh_value;
-        if(win_pkgcount_val == 1) { // Initialize min/max length on first packet.
-            win_maxlength_val = st_md.packet_length;
-            win_minlength_val = st_md.packet_length;
-        } else { // Otherwise, update min/max if needed.
-            if(st_md.packet_length > win_maxlength_val) { win_maxlength_val = st_md.packet_length; }
-            if(st_md.packet_length < win_minlength_val) { win_minlength_val = st_md.packet_length; }
-        }
-        // Write updated statistics back to registers.
-        win_pkgcount_reg.write(user_md.hashed_address, win_pkgcount_val);
-        win_pkglength_reg.write(user_md.hashed_address, win_pkglength_val);
-        win_maxlength_reg.write(user_md.hashed_address, win_maxlength_val);
-        win_minlength_reg.write(user_md.hashed_address, win_minlength_val);
-        win_psh_reg.write(user_md.hashed_address, win_psh_val);
 
         // --- Time window logic and decision making ---
         // Calculate total elapsed time for the current window.
@@ -206,9 +188,27 @@ control ingress(inout headers_t hdr,
             reset_window_stats();
         }
 
+        // Update stats with data from the current packet.
+        win_pkgcount_val = win_pkgcount_val + 1;
+        win_pkglength_val = win_pkglength_val + st_md.packet_length;
+        win_psh_val = win_psh_val + psh_value;
+        if(win_pkgcount_val == 0) { // Initialize min/max length on first packet.
+            win_maxlength_val = st_md.packet_length;
+            win_minlength_val = st_md.packet_length;
+        } else { // Otherwise, update min/max if needed.
+            if(st_md.packet_length > win_maxlength_val) { win_maxlength_val = st_md.packet_length; }
+            if(st_md.packet_length < win_minlength_val) { win_minlength_val = st_md.packet_length; }
+        }
+        // Write updated statistics back to registers.
+        win_pkgcount_reg.write(user_md.hashed_address, win_pkgcount_val);
+        win_pkglength_reg.write(user_md.hashed_address, win_pkglength_val);
+        win_maxlength_reg.write(user_md.hashed_address, win_maxlength_val);
+        win_minlength_reg.write(user_md.hashed_address, win_minlength_val);
+        win_psh_reg.write(user_md.hashed_address, win_psh_val);
+
         // Forward the packet if the final decision was to forward.
         if (user_md.should_forward == 1) {
-            st_md.mcast_grp = 1;
+            st_md.egress_spec = 1;
         }
     }
 }

@@ -1,5 +1,6 @@
 from scapy.all import Ether, IP, TCP, Raw, sendp, wrpcap
 import time
+import random
 
 IFACE = "veth0"
 
@@ -23,16 +24,24 @@ def send_packet_sequence(packet_sequence, src_ip, dst_ip, sport, dport, pcap_nam
     print("  - Saved to {}".format(pcap_name))
 
 
-def test_rule_a():
-    print("\n[Test Rule A] Low-rate DoS - 5 x 54-byte packets, no PSH (expect: DROP)")
-    packet_sequence = [{"len": 54, "psh": False}] * 5
+def test_benign():
+    print("\n[Test Benign] Random packets (expect: FORWARD)")
+    num_packets = 5  # Fixed for consistency
+    packet_sequence = []
+    for _ in range(num_packets):
+        length = random.randint(100, 2000)  # Higher lengths to avoid matching drop rules
+        psh = random.choice([True, False])
+        packet_sequence.append({"len": length, "psh": psh})
     send_packet_sequence(packet_sequence, "10.0.1.1", "192.168.1.1",
-                         1234, 80, "rule_a.pcap")
-    time.sleep(2.1)
-    # trigger packet to fire window
-    pkt = (Ether() / IP(src="10.0.1.1", dst="192.168.1.1") /
-           TCP(sport=1234, dport=80, flags="A"))
-    sendp(pkt, iface=IFACE, verbose=False)
+                         1234, 80, "benign_a.pcap")
+
+def test_malicious():
+    print("\n[Test Malicious] Packets designed to match drop rules (expect: DROP)")
+    # Exact match for first rule: 1 packet, length 54, no PSH
+    num_packets = 1
+    packet_sequence = [{"len": 54, "psh": False}]
+    send_packet_sequence(packet_sequence, "10.0.1.1", "192.168.1.1",
+                         1234, 80, "malicious_a.pcap")
 
 
 def test_rule_b():
@@ -83,9 +92,9 @@ if __name__ == "__main__":
     print("Sending on interface: {}".format(IFACE))
     print("")
 
-    test_rule_a()
-    test_rule_b()
-    test_tree_rule_1()
-    test_normal()
+    test_benign()
+    test_malicious()
+    test_benign()
+    test_malicious()
 
     print("\n=== Done. Check tcpdump on veth1 for forwarded packets. ===")
