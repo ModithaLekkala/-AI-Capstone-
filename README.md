@@ -47,25 +47,35 @@ A Decision Tree model is trained on the CICIDS2017 dataset, and its logical rule
 
 #### Run the project
 
-1. Compile the P4 program (if `main.json` is not available):
-   ```bash
-   p4c-bm2-ss main.p4 -o main.json
-   ```
+Step 1 — Open VS Code terminal and start the container:
+powershell
+docker start p4-ids-dev
+docker exec -it p4-ids-dev bash
 
-2. Start the BMv2 switch:
-   ```bash
-   simple_switch --load-p4 main.json
-   ```
+Step 2 — Inside the container, start the switch:
+bash
+simple_switch main.json -i 0@veth0 -i 1@veth1 &
 
-3. Inject rules to the switch using:
-   ```bash
-   python trigger.py
-   ```
+Step 3 — Wait 2 seconds, load rules:
+bash
+sleep 2
+python3 trigger.py
 
-4. Send packets for testing:
-   ```bash
-   python inject.py
-   ```
+Step 4 — Open a second terminal (+ in VS Code), monitor output:
+powershell
+docker exec -it p4-ids-dev tcpdump -i veth1 -n -e
+or
+tcpdump -i veth1 -n -e
+
+Step 5 — Back in first terminal, inject packets:
+bash
+python3 inject.py
+ 
+One thing to note — if the container was stopped and restarted, the veth interfaces are lost and need to be recreated first:
+bash
+ip link add veth0 type veth peer name veth1
+ip link set veth0 up
+ip link set veth1 up
 
 ---
 
