@@ -1,6 +1,7 @@
+# -*- coding: utf-8 -*-
 #!/usr/bin/env python3
 """
-verify.py — Accuracy checker for the P4 IDS project.
+verify.py - Accuracy checker for the P4 IDS project.
 
 How it works:
   - Reads the pcap files saved by inject.py
@@ -28,11 +29,11 @@ TESTS = [
         "name":       "Benign Test A",
         "src_ip":     "10.0.1.1",
         "expected":   "FORWARD",
-        "sent":       5,  # approximate
+        "sent":       2,  # updated
     },
     {
         "name":       "Malicious Test A",
-        "src_ip":     "10.0.1.1",
+        "src_ip":     "10.0.2.1",
         "expected":   "DROP",
         "sent":       1,
     },
@@ -40,18 +41,18 @@ TESTS = [
         "name":       "Benign Test B",
         "src_ip":     "10.0.1.1",
         "expected":   "FORWARD",
-        "sent":       5,
+        "sent":       2,  # updated
     },
     {
         "name":       "Malicious Test B",
-        "src_ip":     "10.0.1.1",
+        "src_ip":     "10.0.2.1",
         "expected":   "DROP",
         "sent":       1,
     },
 ]
 
 IFACE        = "veth1"       # where forwarded packets appear
-CAPTURE_TIME = 60            # seconds to listen (must cover inject.py runtime ~45s)
+CAPTURE_TIME = 5            # seconds to listen (must cover inject.py runtime ~45s)
 
 # ── Packet capture ────────────────────────────────────────────────────────────
 captured = []

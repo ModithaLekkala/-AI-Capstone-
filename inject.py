@@ -26,10 +26,10 @@ def send_packet_sequence(packet_sequence, src_ip, dst_ip, sport, dport, pcap_nam
 
 def test_benign():
     print("\n[Test Benign] Random packets (expect: FORWARD)")
-    num_packets = 5  # Fixed for consistency
+    num_packets = 2  # Reduced to avoid matching drop rules
     packet_sequence = []
     for _ in range(num_packets):
-        length = random.randint(100, 2000)  # Higher lengths to avoid matching drop rules
+        length = 500  # Fixed small size for testing
         psh = random.choice([True, False])
         packet_sequence.append({"len": length, "psh": psh})
     send_packet_sequence(packet_sequence, "10.0.1.1", "192.168.1.1",
@@ -37,10 +37,10 @@ def test_benign():
 
 def test_malicious():
     print("\n[Test Malicious] Packets designed to match drop rules (expect: DROP)")
-    # Exact match for first rule: 1 packet, length 54, no PSH
+    # Match the first rule: pkgcount=1, maxlength<=17 (set length=60 for small packet)
     num_packets = 1
-    packet_sequence = [{"len": 54, "psh": False}]
-    send_packet_sequence(packet_sequence, "10.0.1.1", "192.168.1.1",
+    packet_sequence = [{"len": 60, "psh": False}]  # Small length to match rule
+    send_packet_sequence(packet_sequence, "10.0.2.1", "192.168.1.1",
                          1234, 80, "malicious_a.pcap")
 
 

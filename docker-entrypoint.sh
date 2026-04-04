@@ -7,20 +7,21 @@ set -e
 
 echo "=== P4 IDS Environment Setup ==="
 
-# ---- Create virtual ethernet pair (veth0 <-> veth1) ----
-# veth0: inject.py sends packets INTO the switch here
-# veth1: forwarded packets come OUT here (for monitoring)
+# ---- Create virtual ethernet interfaces ----
+# Instead of a veth pair, create two separate interfaces for the switch
 if ! ip link show veth0 &>/dev/null; then
-    echo "[+] Creating veth pair: veth0 <-> veth1"
-    ip link add veth0 type veth peer name veth1
+    echo "[+] Creating veth interfaces for switch"
+    # Create two veth interfaces that will be connected to the switch
+    ip link add veth0 type veth peer name switch0
+    ip link add veth1 type veth peer name switch1
+    # Bring them up
     ip link set veth0 up
     ip link set veth1 up
-    # Disable IPv6 DAD to avoid delays
-    sysctl -w net.ipv6.conf.veth0.disable_ipv6=1 &>/dev/null || true
-    sysctl -w net.ipv6.conf.veth1.disable_ipv6=1 &>/dev/null || true
-    echo "[+] veth0 and veth1 are up"
+    ip link set switch0 up
+    ip link set switch1 up
+    echo "[+] Interfaces created: veth0 <-> switch0, veth1 <-> switch1"
 else
-    echo "[+] veth0 already exists"
+    echo "[+] Interfaces already exist"
 fi
 
 # ---- Compile P4 if main.json is missing or stale ----
@@ -37,7 +38,7 @@ echo ""
 echo "=== Ready! Useful commands ==="
 echo ""
 echo "  # Start the switch (in background):"
-echo "  simple_switch main.json -i 0@veth0 -i 1@veth1 &"
+echo "  simple_switch main.json -i 0@switch0 -i 1@switch1 &"
 echo ""
 echo "  # Load IDS rules:"
 echo "  python3 trigger.py"
