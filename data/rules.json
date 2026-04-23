@@ -1,0 +1,67 @@
+[
+    {
+        "table": "decision_table",
+        "match": {
+            "win_maxlength": ["0x1f4", "0xffffffff"],
+            "win_minlength": ["0x1f4", "0xffffffff"],
+            "win_psh": ["0x1", "0xff"],
+            "win_pkglength": ["0x1f4", "0xffffffff"],
+            "win_pkgcount": ["0x1", "0xffffffff"]
+        },
+        "action_name": "forward",
+        "priority": 450,
+        "comment": "Allow benign exact signature: len=500, psh=1, pktcount=1"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_maxlength": ["0x1f4", "0xffffffff"],
+            "win_minlength": ["0x1f4", "0xffffffff"],
+            "win_psh": ["0x0", "0xff"],
+            "win_pkglength": ["0x1f4", "0xffffffff"],
+            "win_pkgcount": ["0x1", "0xffffffff"]
+        },
+        "action_name": "forward",
+        "priority": 440,
+        "comment": "Allow benign exact signature: len=500, psh=0, pktcount=1"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_maxlength": ["0x1f4", "0xffffffff"],
+            "win_minlength": ["0x0", "0x0"],
+            "win_psh": ["0x0", "0x0"],
+            "win_pkglength": ["0x0", "0x0"],
+            "win_pkgcount": ["0x1", "0xffffffff"]
+        },
+        "action_name": "forward",
+        "priority": 430,
+        "comment": "Allow benign fallback: maxlength=500, pktcount=1"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_maxlength": ["0x38", "0xfffffff8"],
+            "win_minlength": ["0x38", "0xfffffff8"],
+            "win_psh": ["0x0", "0x0"],
+            "win_pkglength": ["0x38", "0xfffffff8"],
+            "win_pkgcount": ["0x1", "0xffffffff"]
+        },
+        "action_name": "drop",
+        "priority": 200,
+        "comment": "Drop malicious signature near 60-byte windows, pktcount=1"
+    },
+    {
+        "table": "decision_table",
+        "match": {
+            "win_maxlength": ["0x0", "0x0"],
+            "win_minlength": ["0x0", "0x0"],
+            "win_psh": ["0x0", "0x0"],
+            "win_pkglength": ["0x0", "0x0"],
+            "win_pkgcount": ["0x1", "0xffffffff"]
+        },
+        "action_name": "forward",
+        "priority": 100,
+        "comment": "Forward baseline signature: pktcount=1 for non-malicious flows"
+    }
+]

@@ -2,7 +2,7 @@ import json
 import subprocess
 
 # --- CONFIGURATION ---
-JSON_FILE = "rules.json"
+JSON_FILE = "data/rules.json"
 P4_TABLE = "ingress.decision_table"
 P4_ACTION_PREFIX = "ingress."
 FIELD_ORDER = [
@@ -12,7 +12,7 @@ FIELD_ORDER = [
     "win_pkglength",
     "win_pkgcount"
 ]
-DEFAULT_PRIORITY = "10"
+DEFAULT_PRIORITY = "10"   # used only when a rule has no "priority" field
 
 
 def format_rule_entry(rule):
@@ -27,8 +27,9 @@ def format_rule_entry(rule):
         else:
             raise ValueError("Campo faltante en JSON: {}".format(field))
     full_action_name = P4_ACTION_PREFIX + action_name
+    priority = str(rule.get("priority", DEFAULT_PRIORITY))
     cmd = "table_add {} {}{} => {}".format(
-        P4_TABLE, full_action_name, match_fields_str, DEFAULT_PRIORITY)
+        P4_TABLE, full_action_name, match_fields_str, priority)
     return cmd
 
 

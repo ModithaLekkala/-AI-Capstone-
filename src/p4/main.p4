@@ -3,8 +3,8 @@
 #include <v1model.p4>
 
 // --- CONSTANTS ---
-#define HASH_BASE 10w0       // Base for hash calculation.
-#define HASH_MAX 10w1023     // Max hash value, for 1024 register entries.
+#define HASH_BASE 13w0       // Base for hash calculation.
+#define HASH_MAX 13w8191     // Max hash value, for 8192 register entries.
 #define ETH_TYPE_IPV4 0x0800 // EtherType for IPv4.
 #define IP_PROTO_TCP 8w6     // IP protocol for TCP.
 
@@ -103,13 +103,13 @@ control ingress(inout headers_t hdr,
                 inout standard_metadata_t st_md) {
 
     // Registers for stateful flow tracking.
-    register<bit<48>>(1024) last_time_reg;
-    register<bit<48>>(1024) win_interval_reg;
-    register<bit<32>>(1024) win_pkgcount_reg;
-    register<bit<32>>(1024) win_pkglength_reg;
-    register<bit<32>>(1024) win_maxlength_reg;
-    register<bit<32>>(1024) win_minlength_reg;
-    register<bit<8>>(1024)  win_psh_reg;
+    register<bit<48>>(8192) last_time_reg;
+    register<bit<48>>(8192) win_interval_reg;
+    register<bit<32>>(8192) win_pkgcount_reg;
+    register<bit<32>>(8192) win_pkglength_reg;
+    register<bit<32>>(8192) win_maxlength_reg;
+    register<bit<32>>(8192) win_minlength_reg;
+    register<bit<8>>(8192)  win_psh_reg;
 
     // Actions to be applied by the decision table.
 	action drop()    { user_md.should_forward = 0; }
@@ -136,7 +136,7 @@ control ingress(inout headers_t hdr,
             user_md.win_pkgcount  : ternary;
         }
         actions = { drop; forward; }
-        size = 1024;
+        size = 8192;
         default_action = forward();
     }
 
@@ -190,9 +190,6 @@ control ingress(inout headers_t hdr,
         }
 
         // Update stats with data from the current packet.
-        win_pkgcount_val = win_pkgcount_val + 1;
-        win_pkglength_val = win_pkglength_val + st_md.packet_length;
-        win_psh_val = win_psh_val + psh_value;
         if(win_pkgcount_val == 0) { // Initialize min/max length on first packet.
             win_maxlength_val = st_md.packet_length;
             win_minlength_val = st_md.packet_length;
@@ -200,6 +197,9 @@ control ingress(inout headers_t hdr,
             if(st_md.packet_length > win_maxlength_val) { win_maxlength_val = st_md.packet_length; }
             if(st_md.packet_length < win_minlength_val) { win_minlength_val = st_md.packet_length; }
         }
+        win_pkgcount_val = win_pkgcount_val + 1;
+        win_pkglength_val = win_pkglength_val + st_md.packet_length;
+        win_psh_val = win_psh_val + psh_value;
         // Write updated statistics back to registers.
         win_pkgcount_reg.write(user_md.hashed_address, win_pkgcount_val);
         win_pkglength_reg.write(user_md.hashed_address, win_pkglength_val);
@@ -207,12 +207,15 @@ control ingress(inout headers_t hdr,
         win_minlength_reg.write(user_md.hashed_address, win_minlength_val);
         win_psh_reg.write(user_md.hashed_address, win_psh_val);
 
-        // Forward the packet if the final decision was to forward.
-        // Basic switching: if came from port 0, send to port 1
-        if (st_md.ingress_port == 0) {
-            st_md.egress_spec = 1;
+        // Apply the final forwarding decision to the packet.
+        if (user_md.should_forward == 1) {
+            if (st_md.ingress_port == 0) {
+                st_md.egress_spec = 1;
+            } else {
+                st_md.egress_spec = 0;
+            }
         } else {
-            st_md.egress_spec = 0;
+            mark_to_drop(st_md);
         }
     }
 }

@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+docker_*.log
+switch*.log
+
+# Logs
+*.log
+trigger*.log
+verify*.log
+inject*.log
+
+# Test outputs
+*.pcap.parsed
+test_output/
+results/
+
+# Temporary files
+*.tmp
+*.backup
+
+# OS-specific
+Thumbs.db
+.DS_Store
+
+# Generated files (keep in repo for now, can exclude later)
+# main.json is generated but useful to keep for distribution
